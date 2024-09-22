@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>Pigon - Register</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="register_styles.css">
+    </head>
+    <body>
+        <h1>Register</h1>
+
+        <div id="register-form">
+            <label for="username">Username:</label><br>
+            <input type="text" id="form-username" name="username" placeholder="max.mustermann"><br>
+
+            <label for="displayname">Display name:</label><br>
+            <input type="text" id="form-displayname" name="displayname" placeholder="Max Mustermann"><br>
+
+            <label for="password">Password:</label><br>
+            <input type="password" id="form-password" name="password" placeholder="••••••••••••••"><br>
+
+            <input type="submit" value="Submit" onclick="submitRegister()">
+        </div>
+
+        <div id="error-message">
+            <h3>An error has occured!</h3>
+            <p>Basic Error Header</p>
+            <p>Error description</p>
+        </div>
+
+        <div id="info-message">
+            <h3>Success!</h3>
+            <p>Your account was created successfully.</p>
+            <p>You can now log in.</p>
+        </div>
+
+        <script src="register_logic.js" async defer></script>
+    </body>
+</html>
