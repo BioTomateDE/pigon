@@ -244,6 +244,51 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         response = {'generatedToken': generated_token}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
+    
+    def do_POST_send_message(self, token):
+        content_length = int(self.headers["Content-Length"])
+        post_data_raw = self.rfile.read(content_length)
+
+        try:
+            post_data = json.loads(post_data_raw)
+        except ValueError:
+            self.send_response(400)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {
+                "error": "Content Type should be JSON.",
+            }
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+
+        try:
+            sent_message_text = post_data["text"].strip()
+        except KeyError:
+            self.send_response(400)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {"error": "JSON object needs to have attributes: 'text'."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+    
+        if not 1 <= len(sent_message_text) < 4096:
+            self.send_response(400)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {"error": "Message text should have a length between 1 and 4096."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+        
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        
+        # with open(meta_file, 'w') as file:
+        #     json.dump(meta, file, indent=4)
+
+        response = {}
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+
 
     def do_POST(self):
         print("[POST]", self.path)

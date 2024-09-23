@@ -1,6 +1,13 @@
+document.getElementById('send-message-text').onkeydown = e => {
+    if (e.code == "Enter" && !e.shiftKey) {
+        sendMessage();
+    }
+};
+
 
 function sendMessage() {
-    var messageText = document.getElementById('send-message-text').value;
+    var messageText = document.getElementById('send-message-text').value.trim();
+    if (!messageText) return;
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
@@ -18,14 +25,4 @@ function sendMessage() {
         }
     };
     xhr.send(body);
-
-    // fetch("/send_message", {
-    //     method: "POST",
-    //     body: JSON.stringify({
-    //         text: messageText,
-    //     }),
-    //     headers: {
-    //         "Content-type": "application/json; charset=UTF-8"
-    //     }
-    // });
 }
