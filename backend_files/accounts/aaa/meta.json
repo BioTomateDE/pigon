@@ -1,5 +1,14 @@
 {
-    "displayname": "A",
-    "accountCreated": 1727002918,
-    "passwordHash": -4298161364937341116
+    "displayname": "a",
+    "accountCreated": 1727101865,
+    "passwordHash": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+    "validTokens": [
+        "568dfbc31daa4b79bb54dbda0a1ec428",
+        "935ae5d733a34d1397d2cbf84212ff75",
+        "3d0c3e18ce01432eb28b257d0acda24f",
+        "403a5a34c8734bdbb6cd5961bfdfeede",
+        "5f78bd4c59a74c76b3ef23bd188b4689",
+        "1c5559813a2548a79e8eb8c1c8d230da",
+        "bac60974b08d4eca9731bfd388775d52"
+    ]
 }

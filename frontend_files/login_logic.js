@@ -3,6 +3,11 @@ function submitLogin() {
     var username = document.getElementById('form-username').value;
     var password = document.getElementById('form-password').value;
 
+    var errorMessage = document.getElementById('error-message');
+    var infoMessage = document.getElementById('info-message');
+    errorMessage.style['display'] = 'none';
+    infoMessage.style['display'] = 'none';
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/login");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -13,20 +18,24 @@ function submitLogin() {
     });
 
     xhr.onload = () => {
-        let errorMessage = document.getElementById('error-message');
-        let infoMessage = document.getElementById('info-message');
+        let response = JSON.parse(xhr.responseText);
 
         if (xhr.readyState == 4 && xhr.status == 200 || xhr.status == 201) {
-            console.log(JSON.parse(xhr.responseText));
+            console.log(response);
             errorMessage.style['display'] = 'none';
             infoMessage.style['display'] = 'flex';
+            // localStorage.setItem('token', response['generatedToken']);
+            let generatedToken = response['generatedToken']
+            let tokenExpiryDate = new Date();
+            tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
+            setCookie('token', generatedToken, tokenExpiryDate);
         } else {
             console.log(`Error: ${xhr.status}`);
             errorMessage.style['display'] = 'flex';
             infoMessage.style['display'] = 'none';
             // fuck it
             errorMessage.children[1].textContent = `Response ${xhr.status} - ${xhr.statusText}`;
-            errorMessage.children[2].textContent = xhr.responseText;  // what is html injection
+            errorMessage.children[2].textContent = response['error'];  // what is html injection
         }
     };
     xhr.send(body);

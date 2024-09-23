@@ -1,14 +1,16 @@
 body {
     display: flex;
-    flex-direction: column;
+    flex-flow: column wrap;
+    /* flex-direction: column; */
     padding: 1em 1em 1em 1em;
 
     font-family: sans-serif;
 }
 
-/* #register-form {
-    padding: 2em 2em 2em 2em;
-} */
+#register-form {
+    /* padding: 2em 2em 2em 2em; */
+    margin-bottom: auto;
+}
 
 
 input {
