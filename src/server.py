@@ -44,16 +44,6 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         # self.wfile.write(bytes(message, "utf8"))
 
     def do_POST_register(self, token):
-        if token is not None:
-            self.send_response(303)
-            self.send_header('Location', "/")  # redirect to index if already logged in
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
-            return
-        
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -159,16 +149,6 @@ class HTTPHandler(SimpleHTTPRequestHandler):
 
 
     def do_POST_login(self, token: str):
-        if token is not None:
-            self.send_response(303)
-            self.send_header('Location', "/")  # redirect to index if already logged in
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
-            return
-        
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -295,7 +275,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except KeyError:
             token = None
         
-        if self.path == "/login.html" and token is not None:
+        if self.path in {"/login.html", "/register.html"} and token is not None:
             self.send_response(303)
             self.send_header('Location', "/")  # redirect to index if already logged in
             self.send_header('Content-Type', "text/json")
