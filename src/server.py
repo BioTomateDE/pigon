@@ -1,3 +1,4 @@
+import datetime
 from http.server import HTTPServer as BaseHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 import os
@@ -5,6 +6,8 @@ import json
 import time
 import hashlib
 import uuid
+
+import bs4
 
 
 # -------- Globals --------
@@ -43,7 +46,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         # message = "Bad Request"
         # self.wfile.write(bytes(message, "utf8"))
 
-    def do_POST_register(self, token):
+    def do_POST_register(self, token:str, username:str):
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -148,7 +151,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
 
-    def do_POST_login(self, token: str):
+    def do_POST_login(self, token: str, username: str):
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -245,7 +248,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
     
-    def do_POST_send_message(self, token):
+    def do_POST_send_message(self, token:str, username:str):
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -263,11 +266,12 @@ class HTTPHandler(SimpleHTTPRequestHandler):
 
         try:
             sent_message_text = post_data["text"].strip()
+            channel_id = post_data["channel"]
         except KeyError:
             self.send_response(400)
             self.send_header('Content-Type', "text/json")
             self.end_headers()
-            response = {"error": "JSON object needs to have attributes: 'text'."}
+            response = {"error": "JSON object needs to have attributes: 'text', 'channel'."}
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return
     
@@ -283,8 +287,49 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Type', "text/json")
         self.end_headers()
         
-        # with open(meta_file, 'w') as file:
-        #     json.dump(meta, file, indent=4)
+        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
+        channel_messages_file = os.path.join(channel_dir, "messages.json")
+        
+        try:
+            with open(channel_messages_file, 'r') as file:
+                channel_messages = json.load(file)
+                
+        except FileNotFoundError:
+            self.send_response(404)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            
+            response = {"error": "Channel not found."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+    
+        except OSError:
+            self.send_response(500)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            
+            response = {"error": "(Server Error) Could not read channel messages file."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+        
+        message_obj = {
+            "author": username,
+            "text": sent_message_text,
+            "timestamp": int(time.time()),
+        }
+        channel_messages.append(message_obj)
+        
+        try:
+            with open(channel_messages_file, 'w') as file:
+                json.dump(channel_messages, file, indent=4)
+        except OSError:
+            self.send_response(500)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            
+            response = {"error": "(Server Error) Could not write to channel messages file."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
 
         response = {}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
@@ -296,15 +341,17 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         cookies = SimpleCookie(self.headers.get('Cookie'))
         try:
             token = cookies['token'].value
+            username = cookies['username'].value
         except KeyError:
             token = None
+            username = None
 
         if self.path == "/register":
-            self.do_POST_register(token)
+            self.do_POST_register(token=token, username=username)
         elif self.path == "/login":
-            self.do_POST_login(token)
+            self.do_POST_login(token=token, username=username)
         elif self.path == "/send_message":
-            self.do_POST_send_message(token)
+            self.do_POST_send_message(token=token, username=username)
         else:
             self.send_response(404)
             self.send_header('Content-Type', "text/json")
@@ -329,6 +376,82 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             response = {}
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return
+
+        if self.path.startswith("/channels/"):
+            try:
+                channel_id = int(self.path[len("/channels/"):])
+            except (ValueError, IndexError):
+                self.send_response(400)
+                self.send_header('Content-Type', "text/json")
+                self.end_headers()
+                
+                response = {"error": "Invalid channel ID."}
+                self.wfile.write(bytes(json.dumps(response), "utf8"))
+                return
+            
+            channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
+            channel_messages_file = os.path.join(channel_dir, "messages.json")
+            
+            try:
+                with open(channel_messages_file, 'r') as file:
+                    channel_messages = json.load(file)
+                    
+            except FileNotFoundError:
+                self.send_response(404)
+                self.send_header('Content-Type', "text/json")
+                self.end_headers()
+                
+                response = {"error": "Channel not found."}
+                self.wfile.write(bytes(json.dumps(response), "utf8"))
+                return
+        
+            except OSError:
+                self.send_response(500)
+                self.send_header('Content-Type', "text/json")
+                self.end_headers()
+                
+                response = {"error": "(Server Error) Could not read channel messages file."}
+                self.wfile.write(bytes(json.dumps(response), "utf8"))
+                return
+            
+            
+            # Success! Send index.html with the messages edited in.
+            with open(os.path.join(web_dir, "index.html"), 'r') as file:
+                index_html = file.read()
+                
+            soup = bs4.BeautifulSoup(index_html, "html.parser")
+            messages_div = soup.find('div', {'id': "messages"})
+            
+            for message_obj in channel_messages:
+                # surely there must be a better way to do this right?
+                author_tag = soup.new_tag('span', attrs={'class': "message-author"})
+                author_tag.string = message_obj['author']
+                
+                timestamp_tag = soup.new_tag('span', attrs={'class': "message-timestamp"})
+                date = datetime.datetime.fromtimestamp(message_obj['timestamp'])
+                timestamp_tag.string = date.strftime("%Y-%m-%d %H:%M")
+                
+                br_tag = soup.new_tag('br')
+                text_tag = soup.new_tag('span', attrs={'class': "message-text"})
+                text_tag.string = message_obj['text']
+                
+                message_tag = soup.new_tag('div', attrs={'class': "message"})
+                message_tag.append(author_tag)
+                message_tag.append(timestamp_tag)
+                message_tag.append(br_tag)
+                message_tag.append(text_tag)
+                
+                messages_div.append(message_tag)
+            
+            
+            self.send_response(200)
+            self.send_header('Content-Type', "text/html")
+            self.end_headers()
+            
+            response = str(soup)
+            self.wfile.write(bytes(response, "utf8"))
+            return
+
 
         super().do_GET()
 

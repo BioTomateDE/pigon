@@ -29,6 +29,7 @@ function submitLogin() {
             let tokenExpiryDate = new Date();
             tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
             setCookie('token', generatedToken, tokenExpiryDate);
+            setCookie('username', username, tokenExpiryDate);
         } else {
             console.log(`Error: ${xhr.status}`);
             errorMessage.style['display'] = 'flex';

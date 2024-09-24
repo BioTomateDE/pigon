@@ -6,14 +6,19 @@ document.getElementById('send-message-text').onkeydown = e => {
 
 
 function sendMessage() {
-    var messageText = document.getElementById('send-message-text').value.trim();
+    var messageContainer = document.getElementById('send-message-text');
+    var messageText = messageContainer.value.trim();
     if (!messageText) return;
+    messageContainer.value = "";
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
 
+    let channelID = Number(document.location.pathname.split("/")[2]);
+
     const body = JSON.stringify({
+        channel: channelID,
         text: messageText,
     });
 

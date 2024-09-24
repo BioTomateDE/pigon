@@ -5,12 +5,64 @@ body {
 }
 
 #messages {
-    border-radius: 4px;
-    border-color: black;
+    border-radius: 10px;
+    border-color: var(--secondary-color);
     border-style: solid;
+    border-width: 4px;
+
     position: relative;
+    background-color: var(--tenary-color);
     height: 40em;
     margin: 0em 0em 2em 0em;
     padding: 1em 1em 1em 1em;
+    overflow-y: scroll;
 }
 
+
+
+#send-message-confirm {
+    position: relative;
+    margin-left: auto
+}
+
+#send-message-text {
+    position: relative;
+    /* width: calc(); */
+    max-width: 100%;
+    width: 50%;
+    flex: 1;
+}
+
+
+.message-author {
+    font-weight: bold;
+    margin-right: 1em;
+    font-size: 1.2em;
+}
+
+
+
+.message-author {
+    font-weight: bold;
+    margin-right: 0.6em;
+    font-size: 1.2em;
+}
+
+
+.message-timestamp {
+    color: var(--tenary-text-color);
+    font-size: 0.75em;
+}
+
+.message-text {
+    position: relative;
+    /* TODO fix this piece of shit god i hate css */
+    /* and i fucking hate css comments just give me // you bastard these multiline comments make me wanna kms */
+    /* padding: 0.2em 0em 1.2em 0em; */
+}
+
+
+.message {
+    /* margin-top: 0.5em; */
+    margin-bottom: 1em;
+}
