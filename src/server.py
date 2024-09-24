@@ -3,16 +3,18 @@ from http.server import HTTPServer as BaseHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 import os
 import json
+import re
 import time
 import hashlib
+from urllib.parse import urlparse
 import uuid
-
 import bs4
 
 
 # -------- Globals --------
 # WARNING: / or \ SHOULD NEVER BE ALLOWED FOR PATH SECURITY
 USERNAME_CHARSET = set("abcdefghijklmnopqrstuvwxyz-_")
+MESSAGE_BATCH_SIZE = 30
 
 
 # -------- Utility --------
@@ -239,7 +241,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         
         generated_token = generate_token()
-        meta['validTokens'].append(generated_token)
+        m = hashlib.sha256()
+        m.update(bytes(generated_token, 'utf-8'))
+        generated_token_hashed = m.hexdigest()
+        meta['validTokens'].append(generated_token_hashed)
         
         with open(meta_file, 'w') as file:
             json.dump(meta, file, indent=4)
@@ -258,10 +263,12 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_response(400)
             self.send_header('Content-Type', "text/json")
             self.end_headers()
-            response = {
-                "error": "Content Type should be JSON.",
-            }
+            response = {"error": "Content Type should be JSON."}
             self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+
+        
+        if not self.validate_auth(token, username, False):
             return
 
         try:
@@ -288,7 +295,33 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         
         channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
-        channel_messages_file = os.path.join(channel_dir, "messages.json")
+        channel_meta_file = os.path.join(channel_dir, "meta.json")
+        
+        try:
+            with open(channel_meta_file, 'r') as file:
+                channel_meta = json.load(file)
+                
+        except OSError:
+            self.send_response(500)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            
+            response = {"error": "(Server Error) Could not read channel meta file."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+        
+        except FileNotFoundError:
+            self.send_response(404)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            
+            response = {"error": "Channel not found."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return
+        
+        
+        batch_id = channel_meta['latestMessageBatch']
+        channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id), "messages.json")
         
         try:
             with open(channel_messages_file, 'r') as file:
@@ -311,6 +344,14 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             response = {"error": "(Server Error) Could not read channel messages file."}
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return
+        
+        if len(channel_messages) >= MESSAGE_BATCH_SIZE:
+            batch_id += 1
+            channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id), "messages.json")
+            channel_meta['latestMessageBatch'] = batch_id
+            with open(channel_meta_file, 'w') as file:
+                json.dump(channel_meta, file, indent=4)
+            channel_messages = []
         
         message_obj = {
             "author": username,
@@ -342,7 +383,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             token = cookies['token'].value
             username = cookies['username'].value
-        except KeyError:
+            assert validate_username(username)
+        except (AssertionError, KeyError):
             token = None
             username = None
 
@@ -364,10 +406,21 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         cookies = SimpleCookie(self.headers.get('Cookie'))
         try:
             token = cookies['token'].value
+            username = cookies['username'].value
         except KeyError:
             token = None
+            username = None
+            
+        query = urlparse(self.path).query
+        path = urlparse(self.path).path
+        if query:
+            query_components = dict(qc.split("=") for qc in query.split("&"))
+        else:
+            query_components = {}
         
-        if self.path in {"/login.html", "/register.html"} and token is not None:
+        print("GET", self.path, query_components)
+        
+        if path in {"/login.html", "/register.html"} and token is not None:
             self.send_response(303)
             self.send_header('Location', "/")  # redirect to index if already logged in
             self.send_header('Content-Type', "text/json")
@@ -377,10 +430,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return
 
-        if self.path.startswith("/channels/"):
-            try:
-                channel_id = int(self.path[len("/channels/"):])
-            except (ValueError, IndexError):
+        if path.startswith("/channels/"):
+            regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
+            
+            if regex_match is None:
                 self.send_response(400)
                 self.send_header('Content-Type', "text/json")
                 self.end_headers()
@@ -389,71 +442,161 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(bytes(json.dumps(response), "utf8"))
                 return
             
+            channel_id, sub = regex_match.groups()
+            sub = "" if sub == None else sub.strip("/")
+            
+            if not self.validate_auth(token, username, True):
+                return
+            
+            if not sub:
+                self.path = "/index.html"
+                super().do_GET()
+                return
+            
+            	
             channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
-            channel_messages_file = os.path.join(channel_dir, "messages.json")
             
-            try:
-                with open(channel_messages_file, 'r') as file:
-                    channel_messages = json.load(file)
+            if sub == "about":
+                channel_meta_file = os.path.join(channel_dir, "meta.json")
+                
+                try:
+                    with open(channel_meta_file, 'r') as file:
+                        channel_meta = json.load(file)
+                
+                except FileNotFoundError:
+                    self.send_response(404)
+                    self.send_header('Content-Type', "text/json")
+                    self.end_headers()
                     
-            except FileNotFoundError:
-                self.send_response(404)
+                    response = {"error": "Channel not found."}
+                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    return
+
+                except OSError:
+                    self.send_response(500)
+                    self.send_header('Content-Type', "text/json")
+                    self.end_headers()
+                    
+                    response = {"error": "(Server Error) Could not read channel meta file."}
+                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    return
+                                
+                # Success, send channel about
+                self.send_response(200)
                 self.send_header('Content-Type', "text/json")
                 self.end_headers()
                 
-                response = {"error": "Channel not found."}
+                response = channel_meta
                 self.wfile.write(bytes(json.dumps(response), "utf8"))
                 return
-        
-            except OSError:
-                self.send_response(500)
+            
+            
+            if sub == "messages":
+                try:
+                    batch_id = int(query_components['batch'])
+                except (ValueError, KeyError):
+                    self.send_response(400)
+                    self.send_header('Content-Type', "text/json")
+                    self.end_headers()
+                    
+                    response = {"error": "Invalid or unspecified batch ID."}
+                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    return
+                
+                channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
+                
+                try:
+                    with open(channel_messages_file, 'r') as file:
+                        channel_messages = json.load(file)
+                        
+                except FileNotFoundError:
+                    self.send_response(404)
+                    self.send_header('Content-Type', "text/json")
+                    self.end_headers()
+                    
+                    response = {"error": "Channel not found or invalid message batch ID."}
+                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    return
+            
+                except OSError:
+                    self.send_response(500)
+                    self.send_header('Content-Type', "text/json")
+                    self.end_headers()
+                    
+                    response = {"error": "(Server Error) Could not read channel messages file."}
+                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    return
+                
+                
+                # Success! Send channel messages
+                self.send_response(200)
                 self.send_header('Content-Type', "text/json")
                 self.end_headers()
                 
-                response = {"error": "(Server Error) Could not read channel messages file."}
+                response = channel_messages
                 self.wfile.write(bytes(json.dumps(response), "utf8"))
                 return
-            
-            
-            # Success! Send index.html with the messages edited in.
-            with open(os.path.join(web_dir, "index.html"), 'r') as file:
-                index_html = file.read()
-                
-            soup = bs4.BeautifulSoup(index_html, "html.parser")
-            messages_div = soup.find('div', {'id': "messages"})
-            
-            for message_obj in channel_messages:
-                # surely there must be a better way to do this right?
-                author_tag = soup.new_tag('span', attrs={'class': "message-author"})
-                author_tag.string = message_obj['author']
-                
-                timestamp_tag = soup.new_tag('span', attrs={'class': "message-timestamp"})
-                date = datetime.datetime.fromtimestamp(message_obj['timestamp'])
-                timestamp_tag.string = date.strftime("%Y-%m-%d %H:%M")
-                
-                br_tag = soup.new_tag('br')
-                text_tag = soup.new_tag('span', attrs={'class': "message-text"})
-                text_tag.string = message_obj['text']
-                
-                message_tag = soup.new_tag('div', attrs={'class': "message"})
-                message_tag.append(author_tag)
-                message_tag.append(timestamp_tag)
-                message_tag.append(br_tag)
-                message_tag.append(text_tag)
-                
-                messages_div.append(message_tag)
-            
-            
-            self.send_response(200)
-            self.send_header('Content-Type', "text/html")
-            self.end_headers()
-            
-            response = str(soup)
-            self.wfile.write(bytes(response, "utf8"))
-            return
 
 
         super().do_GET()
+    
+    
+    def validate_auth(self, token:str, username:str, redirect_if_not_exist:bool) -> bool:
+        if token is None or username is None:
+            if redirect_if_not_exist:
+                self.send_response(303)
+                self.send_header('Location', "/login.html")  # redirect to login.html if not logged in
+                self.send_header('Content-Type', "text/json")
+                self.end_headers()
+                response = {}
+            else:
+                self.send_response(401)
+                self.send_header('Content-Type', "text/json")
+                self.end_headers()
+                response = {"error": "Not authorized. Please provide token and username."}
+                
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return False
+        
+        user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
+        
+        try:
+            with open(user_meta_file, 'r') as file:
+                user_meta = json.load(file)
+        
+        except FileNotFoundError:
+            self.send_response(401)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {"error": "There is no user associated with this username."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return False
+    
+        except OSError:
+            self.send_response(500)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {
+                "error": "(Server Error) Could not read user meta file.",
+            }
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return False
+        
+        m = hashlib.sha256()
+        m.update(bytes(token, 'utf-8'))
+        token_hashed = m.hexdigest()
+        for valid_token_hash in user_meta['validTokens']:
+            if token_hashed == valid_token_hash:
+                break
+        else:
+            self.send_response(401)
+            self.send_header('Content-Type', "text/json")
+            self.end_headers()
+            response = {"error": "Not authenticated. Token is invalid."}
+            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            return False
+
+        return True
 
 
 class HTTPServer(BaseHTTPServer):
