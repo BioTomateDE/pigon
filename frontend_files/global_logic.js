@@ -52,3 +52,15 @@ function formatDate(date) {
         return `${year}-${month}-${day} ${hours}:${minutes}`;
     }
 }
+
+function fixLocalURL(sub) {
+    // https://stackoverflow.com/questions/31712808/how-to-force-javascript-to-deep-copy-a-string
+    // another example why this language is cancer
+    let url = (' ' + window.location.pathname).slice(1);
+
+    if (url.charAt(url.length - 1) !== "/") {
+        url += "/";
+    }
+    url += sub;
+    return url;
+}

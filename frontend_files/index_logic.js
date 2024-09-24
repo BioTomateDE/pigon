@@ -83,7 +83,8 @@ function loadMessages(batchID) {
         }
     }
 
-    xhr.open('GET', `messages?batch=${batchID}`, true);
+    let url = fixLocalURL(`messages?batch=${batchID}`);
+    xhr.open('GET', url, true);
     xhr.send(null);
 }
 
@@ -110,7 +111,8 @@ function loadChannelAbout() {
         }
     }
 
-    xhr.open('GET', `about`, true);
+    let url = fixLocalURL("about");
+    xhr.open('GET', url, true);
     xhr.send(null);
 }
 
