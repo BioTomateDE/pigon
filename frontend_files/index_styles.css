@@ -1,10 +1,21 @@
 body {
     display: flex;
     flex-direction: column;
+    flex-wrap: wrap;
     padding: 1em 1em 1em 1em;
 }
 
+
+#sendbar {
+    display: flex;
+    flex-direction: row;
+}
+
 #messages {
+    /* display: flex;
+    flex-direction: column;
+    flex-wrap: wrap; */
+
     border-radius: 10px;
     border-color: var(--secondary-color);
     border-style: solid;
@@ -16,30 +27,14 @@ body {
     margin: 0em 0em 2em 0em;
     padding: 1em 1em 1em 1em;
     overflow-y: scroll;
+    overflow-wrap:break-word;
 }
 
 
-
-#send-message-confirm {
-    position: relative;
-    margin-left: auto
-}
 
 #send-message-text {
-    position: relative;
-    /* width: calc(); */
-    max-width: 100%;
-    width: 50%;
     flex: 1;
 }
-
-
-.message-author {
-    font-weight: bold;
-    margin-right: 1em;
-    font-size: 1.2em;
-}
-
 
 
 .message-author {
@@ -56,6 +51,11 @@ body {
 
 .message-text {
     position: relative;
+    word-wrap: break-all;
+    overflow-wrap: break-all;
+    text-wrap: wrap;
+    /* white-space: normal; */
+
     /* TODO fix this piece of shit god i hate css */
     /* and i fucking hate css comments just give me // you bastard these multiline comments make me wanna kms */
     /* padding: 0.2em 0em 1.2em 0em; */
@@ -65,4 +65,8 @@ body {
 .message {
     /* margin-top: 0.5em; */
     margin-bottom: 1em;
+    
+    word-wrap: break-all;
+    overflow-wrap: break-all;
+    /* white-space: normal; */
 }

@@ -9,7 +9,7 @@ function sendMessage() {
     var messageContainer = document.getElementById('send-message-text');
     var messageText = messageContainer.value.trim();
     if (!messageText) return;
-    console.log("Sending", messageText)
+    console.log("Sending", messageText);
     messageContainer.value = "";
 
     const xhr = new XMLHttpRequest();
@@ -27,12 +27,49 @@ function sendMessage() {
         if (xhr.readyState == 4 && xhr.status == 200 || xhr.status == 201) {
             console.log(JSON.parse(xhr.responseText));
         } else {
-            console.log(`Error: ${xhr.status}`);
+            console.warn(`Error: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message:", JSON.parse(xhr.responseText)['error']);
         }
     };
     xhr.send(body);
 }
 
+
+function replaceMessageAuthorName(username, displayname) {
+    let placeholderAuthorNodes = document.getElementsByClassName("message-author-placeholder");
+
+    placeholderAuthorNodes.forEach(authorNode => {
+        if (authorNode.innerText == username) {
+            authorNode.innerText = displayname;
+            authorNode.classList.remove("message-author-placeholder");
+        }
+    });
+}
+
+
+async function loadAccountMeta(username) {
+    var xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState != 4) return;
+        let response = JSON.parse(xhr.responseText);
+
+        if (xhr.status == 200 || xhr.status == 201) {
+            accountMetaCache[username] = response;
+            let displayname = response['displayname']
+            return [username, displayname];
+
+        } else {
+            console.warn(`Error: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message:", response['error']);
+            return [null, null]
+        }
+    }
+
+    let url = `users/${username}/about/`;
+    xhr.open('GET', url, true);
+    xhr.send(null);
+}
 
 
 
@@ -45,21 +82,25 @@ function loadMessages(batchID) {
             let messagesDiv = document.getElementById("messages");
 
             messages.forEach(message => {
+                if (!(message['author'] in accountMetaCache)) {
+                    // v Placeholder so not every message will trigger this; it takes time to load
+                    accountMetaCache[message['author']] = null;
+                    loadAccountMeta(message['author'])
+                        .then(replaceMessageAuthorName);
+                }
+
                 let nodeDiv = document.createElement("div");
                 nodeDiv.classList.add("message");
 
                 let nodeAuthor = document.createElement("span");
                 nodeAuthor.innerText = message['author'];
                 nodeAuthor.classList.add("message-author");
+                nodeAuthor.classList.add("message-author-placeholder");
                 nodeDiv.appendChild(nodeAuthor);
 
                 let nodeTimestamp = document.createElement("span");
 
                 let date = new Date(message['timestamp'] * 1000);
-                // let dateFormatted = date.toISOString();
-                // let removeZ = dateFormatted.at(dateFormatted.length - 1) == "Z" ? 1 : 0;
-                // dateFormatted = dateFormatted.substring(0, dateFormatted.length - 7 - removeZ);
-                // dateFormatted = dateFormatted.replace("T", " ");
                 let dateFormatted = formatDate(date);
 
                 nodeTimestamp.innerText = dateFormatted;
@@ -118,8 +159,12 @@ function loadChannelAbout() {
 
 
 var channelAbout = null;
+var accountMetaCache = {};
 
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");
     loadChannelAbout();
 }
+
+// worked on: account loading stuff (not tested! async may be scuffed)
+// todo: everything ^ server side 

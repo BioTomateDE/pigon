@@ -41,12 +41,13 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         fullpath = os.path.join(self.server.base_path, relpath)
         return fullpath
 
-    def _respond_bad(self):
-        self.send_response(400)
+    def send_error(self, code:int, message:str):
+        self.send_response(code)
         self.send_header('Content-Type', "text/json")
         self.end_headers()
-        # message = "Bad Request"
-        # self.wfile.write(bytes(message, "utf8"))
+        response = {"error": message}
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+
 
     def do_POST_register(self, token:str, username:str):
         content_length = int(self.headers["Content-Length"])
@@ -55,13 +56,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             post_data = json.loads(post_data_raw)
         except ValueError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Content Type should be JSON.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Content Type should be JSON.")
             return
 
         try:
@@ -69,43 +64,19 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             displayname = post_data["displayname"]
             password = post_data["password"]
         except KeyError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "JSON object needs to have attributes: 'username', 'displayname', 'password'.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "JSON object needs to have attributes: 'username', 'displayname', 'password'.")
             return
 
         if not validate_username(username):
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Username should be a 3-28 character string of alphanumeric characters including '-' and '_'. There should be no consecutive hyphens or underscores.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Username should be a 3-28 character string of alphanumeric characters including - and _")
             return
 
         if not (1 <= len(displayname) <= 48):
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Display Name should be a 1-48 character string.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Display Name should have a length between 1 and 48 characters.")
             return
 
         if not (1 <= len(password) <= 128):  # TODO maybe only (certain) ascii chars?
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Password should be a 1-128 character string.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Password should have a length between 1 and 128 characters.")
             return
 
         user_dir = os.path.join(backend_dir, "accounts", username)
@@ -118,16 +89,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except FileNotFoundError:
             pass
         else:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "User already exists.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "User already exists.")
             return
         
-        # Success!
+        # Success! Create user
         m = hashlib.sha256()
         m.update(bytes(password, 'utf-8'))
         # TODO salting?
@@ -160,46 +125,23 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             post_data = json.loads(post_data_raw)
         except ValueError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Content Type should be JSON.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Content Type should be JSON.")
             return
 
         try:
             username = post_data["username"]
             password = post_data["password"]
         except KeyError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "JSON object needs to have attributes: 'username', 'password'.",
-            }
+            self.send_error(400, "JSON object needs to have attributes: 'username', 'password'.")
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return
 
         if not validate_username(username):
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Username should a 3-28 character string of alphanumeric characters including '-' and '_'.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Username should a 3-28 character string of alphanumeric characters including - and _")
             return
 
         if not (1 <= len(password) <= 128):
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Password should be a 1-128 character string.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(400, "Password should have a length between 1 and 128 characters.")
             return
 
         user_dir = os.path.join(backend_dir, "accounts", username)
@@ -210,32 +152,19 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 meta = json.load(file)
 
         except FileNotFoundError:
-            self.send_response(404)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "User not found.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(404, "User does not exist.")
             return
 
-        # Success!
         stored_password_hash = meta["passwordHash"]
         m = hashlib.sha256()
         m.update(bytes(password, 'utf-8'))
         password_hash = m.hexdigest()
 
         if stored_password_hash != password_hash:
-            self.send_response(401)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "Incorrect password.",
-            }
-            message = json.dumps(response)
-            self.wfile.write(bytes(message, "utf8"))
+            self.send_error(401, "Incorrect password.")
             return
 
+        # Success! Return generated token
         self.send_response(200)
         self.send_header('Content-Type', "text/json")
         self.end_headers()
@@ -260,12 +189,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             post_data = json.loads(post_data_raw)
         except ValueError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {"error": "Content Type should be JSON."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
-            return
+            self.send_error(400, "Content Type should be JSON.")
 
         
         if not self.validate_auth(token, username, False):
@@ -275,24 +199,11 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             sent_message_text = post_data["text"].strip()
             channel_id = post_data["channel"]
         except KeyError:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {"error": "JSON object needs to have attributes: 'text', 'channel'."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
-            return
+            self.send_error(400, "JSON object needs to have attributes: 'text', 'channel'.")
     
         if not 1 <= len(sent_message_text) < 4096:
-            self.send_response(400)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {"error": "Message text should have a length between 1 and 4096."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
-            return
+            self.send_error(400, "Message text should have a length between 1 and 4096.")
         
-        self.send_response(200)
-        self.send_header('Content-Type', "text/json")
-        self.end_headers()
         
         channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         channel_meta_file = os.path.join(channel_dir, "meta.json")
@@ -302,55 +213,38 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 channel_meta = json.load(file)
                 
         except OSError:
-            self.send_response(500)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {"error": "(Server Error) Could not read channel meta file."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(500, "(Server Error) Could not read channel meta file.")
             return
         
         except FileNotFoundError:
-            self.send_response(404)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {"error": "Channel not found."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(404, "Channel not found.")
             return
         
         
         batch_id = channel_meta['latestMessageBatch']
-        channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id), "messages.json")
+        channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id)+".json")
         
         try:
             with open(channel_messages_file, 'r') as file:
                 channel_messages = json.load(file)
                 
         except FileNotFoundError:
-            self.send_response(404)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {"error": "Channel not found."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(404, "Channel messages batch file not found. Could be a permanent server issue lol")
             return
     
         except OSError:
-            self.send_response(500)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {"error": "(Server Error) Could not read channel messages file."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(500, "(Server Error) Could not read channel messages file.")
             return
         
         if len(channel_messages) >= MESSAGE_BATCH_SIZE:
             batch_id += 1
-            channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id), "messages.json")
+            channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id)+".json")
             channel_meta['latestMessageBatch'] = batch_id
-            with open(channel_meta_file, 'w') as file:
-                json.dump(channel_meta, file, indent=4)
+            try:
+                with open(channel_meta_file, 'w') as file:
+                    json.dump(channel_meta, file, indent=4)
+            except OSError:
+                self.send_error(500, "(Server Error) Could not write to channel meta file.")
             channel_messages = []
         
         message_obj = {
@@ -364,13 +258,15 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             with open(channel_messages_file, 'w') as file:
                 json.dump(channel_messages, file, indent=4)
         except OSError:
-            self.send_response(500)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            
-            response = {"error": "(Server Error) Could not write to channel messages file."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            # i hate handling these retarded errors
+            # it would have to reset the meta file potentially (which could also OSError)
+            self.send_error(500, "(Server Error) Could not write to channel messages file.")
             return
+
+        # Success! Append message to latest message batch (or create a new one if necessary)
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
 
         response = {}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
@@ -395,11 +291,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         elif self.path == "/send_message":
             self.do_POST_send_message(token=token, username=username)
         else:
-            self.send_response(404)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {'error': "Invalid post URI!"}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(404, "Invalid post URI.")
     
     
     def do_GET(self):
@@ -422,7 +314,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         
         if path in {"/login.html", "/register.html"} and token is not None:
             self.send_response(303)
-            self.send_header('Location', "/")  # redirect to index if already logged in
+            self.send_header('Location', "/")  # redirect to index if already logged in TODO ??? index is nor
             self.send_header('Content-Type', "text/json")
             self.end_headers()
             
@@ -434,12 +326,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
             
             if regex_match is None:
-                self.send_response(400)
-                self.send_header('Content-Type', "text/json")
-                self.end_headers()
-                
-                response = {"error": "Invalid channel ID."}
-                self.wfile.write(bytes(json.dumps(response), "utf8"))
+                self.send_error(400, "Invalid channel ID.")
                 return
             
             channel_id, sub = regex_match.groups()
@@ -464,21 +351,11 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                         channel_meta = json.load(file)
                 
                 except FileNotFoundError:
-                    self.send_response(404)
-                    self.send_header('Content-Type', "text/json")
-                    self.end_headers()
-                    
-                    response = {"error": "Channel not found."}
-                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    self.send_error(404, "Channel not found.")
                     return
 
                 except OSError:
-                    self.send_response(500)
-                    self.send_header('Content-Type', "text/json")
-                    self.end_headers()
-                    
-                    response = {"error": "(Server Error) Could not read channel meta file."}
-                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    self.send_error(500, "(Server Error) Could not read channel meta file.")
                     return
                                 
                 # Success, send channel about
@@ -495,12 +372,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 try:
                     batch_id = int(query_components['batch'])
                 except (ValueError, KeyError):
-                    self.send_response(400)
-                    self.send_header('Content-Type', "text/json")
-                    self.end_headers()
-                    
-                    response = {"error": "Invalid or unspecified batch ID."}
-                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    self.send_error(400, "Invalid or unspecified messages batch ID.")
                     return
                 
                 channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
@@ -510,21 +382,11 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                         channel_messages = json.load(file)
                         
                 except FileNotFoundError:
-                    self.send_response(404)
-                    self.send_header('Content-Type', "text/json")
-                    self.end_headers()
-                    
-                    response = {"error": "Channel not found or invalid message batch ID."}
-                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    self.send_error(404, "Channel not found or invalid message batch ID.")
                     return
             
                 except OSError:
-                    self.send_response(500)
-                    self.send_header('Content-Type', "text/json")
-                    self.end_headers()
-                    
-                    response = {"error": "(Server Error) Could not read channel messages file."}
-                    self.wfile.write(bytes(json.dumps(response), "utf8"))
+                    self.send_error(500, "(Server Error) Could not read channel messages file.")
                     return
                 
                 
@@ -550,10 +412,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 response = {}
             else:
-                self.send_response(401)
-                self.send_header('Content-Type', "text/json")
-                self.end_headers()
-                response = {"error": "Not authorized. Please provide token and username."}
+                self.send_error(401, "Not authorized. Please provide token and username.")
                 
             self.wfile.write(bytes(json.dumps(response), "utf8"))
             return False
@@ -565,21 +424,11 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 user_meta = json.load(file)
         
         except FileNotFoundError:
-            self.send_response(401)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {"error": "There is no user associated with this username."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(401, "There is no user associated with this username.")
             return False
     
         except OSError:
-            self.send_response(500)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {
-                "error": "(Server Error) Could not read user meta file.",
-            }
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(500, "(Server Error) Could not read user meta file.")
             return False
         
         m = hashlib.sha256()
@@ -589,11 +438,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             if token_hashed == valid_token_hash:
                 break
         else:
-            self.send_response(401)
-            self.send_header('Content-Type', "text/json")
-            self.end_headers()
-            response = {"error": "Not authenticated. Token is invalid."}
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(401, "Invalid token.")
             return False
 
         return True
