@@ -294,7 +294,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Invalid post URI.")
     
     
-    def do_GET_channels(self, query_components:dict, path:str, token:str, username:str):
+    def do_GET_channels(self, path:str, query_components:dict, token:str, username:str):
         regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
         if regex_match is None:
             self.send_error(400, "Invalid channel ID.")
@@ -376,6 +376,52 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
     
     
+    def do_GET_users(self, path:str, query_components:dict, token:str, username:str):
+        regex_match = re.match(r"/users/([A-Za-z0-9\-_]{3,28})(/|/about/?)?$", path)
+        if regex_match is None:
+            self.send_error(400, "Invalid URI.")
+            return
+        
+        target_username, sub = regex_match.groups()
+        sub = "" if sub == None else sub.strip("/")
+        
+        if not sub:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            message = "<h1>This is not yet implemented!</h1>"
+            self.wfile.write(bytes(message, 'utf-8'))
+        
+        elif sub == "about":
+            self.do_GET_users_about(target_username)
+    
+    
+    def do_GET_users_about(self, target_username: str):
+        account_dir = os.path.join(backend_dir, "accounts", target_username)
+        account_meta_file = os.path.join(account_dir, "meta.json")
+        
+        try:
+            with open(account_meta_file, 'r') as file:
+                account_meta_private = json.load(file)
+                
+        except FileNotFoundError:
+            self.send_error(404, "User does not exist.")
+            return
+        
+        except OSError:
+            self.send_error(500, "(Server Error)  Could not read user meta file.")
+            return
+        
+        # Success! Send filtered account meta
+        keys_filter = ['displayname', 'accountCreated']
+        account_meta_public = {key:value for key,value in account_meta_private.items() if key in keys_filter}
+        
+        self.send_response(200)
+        self.send_header("Content-Type", "text/json")
+        self.end_headers()
+        self.wfile.write(bytes(json.dumps(account_meta_public), 'utf-8'))
+    
+    
     def do_GET(self):
         cookies = SimpleCookie(self.headers.get('Cookie'))
         try:
@@ -406,6 +452,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
 
         if path.startswith("/channels/"):
             self.do_GET_channels(path, query_components, token, username)
+            return
+        
+        if path.startswith("/users/"):
+            self.do_GET_users(path, query_components, token, username)
             return
 
 

@@ -37,8 +37,9 @@ function sendMessage() {
 
 function replaceMessageAuthorName(username, displayname) {
     let placeholderAuthorNodes = document.getElementsByClassName("message-author-placeholder");
+    console.log(`Replacing username ${username} with displayname "${displayname}"`);
 
-    placeholderAuthorNodes.forEach(authorNode => {
+    [...placeholderAuthorNodes].forEach(authorNode => {
         if (authorNode.innerText == username) {
             authorNode.innerText = displayname;
             authorNode.classList.remove("message-author-placeholder");
@@ -47,7 +48,7 @@ function replaceMessageAuthorName(username, displayname) {
 }
 
 
-async function loadAccountMeta(username) {
+function loadAccountMeta(username) {
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
@@ -56,19 +57,44 @@ async function loadAccountMeta(username) {
 
         if (xhr.status == 200 || xhr.status == 201) {
             accountMetaCache[username] = response;
-            let displayname = response['displayname']
-            return [username, displayname];
+            let displayname = response['displayname'];
+            replaceMessageAuthorName(username, displayname);
+            // return [username, displayname];
 
         } else {
             console.warn(`Error: ${xhr.status} - ${xhr.statusText}`);
             console.log("Error Message:", response['error']);
-            return [null, null]
+            // return [null, null];
         }
     }
 
-    let url = `users/${username}/about/`;
+    let url = `/users/${username}/about/`;
     xhr.open('GET', url, true);
     xhr.send(null);
+}
+
+
+
+function textFormatting(text) {
+    // TODO what the hell is going on in the regex
+    text = escapeHTML(text);
+
+    // https://stackoverflow.com/questions/11819059/regex-match-character-which-is-not-escaped
+
+    const reCodeBlock = /``([^\s]+?)``/g;
+    const reCode = /`([^\s]+?)`/g;
+    const reBold = /(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*/g;
+    const reItalic = /(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*/g;
+    const reUnderlined = /(?<!\\)(?:\\\\)*_([^\s]+?)(?<!\\)(?:\\\\)*_/g;
+    // TODO spoilers
+
+    text = text.replaceAll(reCodeBlock, `<pre><code>$1</code></pre>`)
+        .replaceAll(reCode, "<code>$1</code>")
+        .replaceAll(reBold, "<strong>$1</strong>")
+        .replaceAll(reItalic, "<em>$1</em>")
+        .replaceAll(reUnderlined, "<u>$1</u>")
+
+    return text;
 }
 
 
@@ -85,8 +111,7 @@ function loadMessages(batchID) {
                 if (!(message['author'] in accountMetaCache)) {
                     // v Placeholder so not every message will trigger this; it takes time to load
                     accountMetaCache[message['author']] = null;
-                    loadAccountMeta(message['author'])
-                        .then(replaceMessageAuthorName);
+                    loadAccountMeta(message['author']);
                 }
 
                 let nodeDiv = document.createElement("div");
@@ -111,7 +136,7 @@ function loadMessages(batchID) {
                 nodeDiv.appendChild(nodeBr);
 
                 let nodeText = document.createElement("span");
-                nodeText.innerText = message['text'];
+                nodeText.innerHTML = textFormatting(message['text']);
                 nodeText.classList.add("message-text");
                 nodeDiv.appendChild(nodeText);
 

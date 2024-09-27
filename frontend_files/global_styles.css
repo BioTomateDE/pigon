@@ -15,7 +15,7 @@ body {
     font-family: sans-serif;
     background-color: var(--main-color);
     color: var(--main-text-color);
-    font-size: 1.1em;
+    /* font-size: 1.05em; */
 }
 
 input[type=text],
@@ -56,4 +56,11 @@ a:visited {
 
 a:hover {
     color: rgb(40, 182, 40);
+}
+
+
+code {
+    font-family: Consolas, "courier new";
+    background-color: var(--tenary-color);
+    padding: 2px;
 }
