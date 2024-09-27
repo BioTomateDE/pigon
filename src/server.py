@@ -294,6 +294,88 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Invalid post URI.")
     
     
+    def do_GET_channels(self, query_components:dict, path:str, token:str, username:str):
+        regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
+        if regex_match is None:
+            self.send_error(400, "Invalid channel ID.")
+            return
+        
+        channel_id, sub = regex_match.groups()
+        sub = "" if sub == None else sub.strip("/")
+        
+        if not self.validate_auth(token, username, True):
+            return
+        
+        if not sub:
+            self.path = "/index.html"
+            super().do_GET()
+            return
+        
+        if sub == "about":
+            self.do_GET_channels_about(query_components, channel_id)
+        elif sub == "messages":
+            self.do_GET_channel_messages(query_components, channel_id)
+        else:
+            self.send_error(404, "This error can only happen if the regex is messed up.")
+    
+    
+    def do_GET_channels_about(self, query_components:dict, channel_id:int):
+        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
+        channel_meta_file = os.path.join(channel_dir, "meta.json")
+        
+        try:
+            with open(channel_meta_file, 'r') as file:
+                channel_meta = json.load(file)
+        
+        except FileNotFoundError:
+            self.send_error(404, "Channel not found.")
+            return
+
+        except OSError:
+            self.send_error(500, "(Server Error) Could not read channel meta file.")
+            return
+                        
+        # Success, send channel about
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        
+        response = channel_meta
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+    
+    
+    def do_GET_channel_messages(self, query_components:dict, channel_id:int):
+        try:
+            batch_id = int(query_components['batch'])
+        except (ValueError, KeyError):
+            self.send_error(400, "Invalid or unspecified messages batch ID.")
+            return
+        
+        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
+        channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
+        
+        try:
+            with open(channel_messages_file, 'r') as file:
+                channel_messages = json.load(file)
+                
+        except FileNotFoundError:
+            self.send_error(404, "Channel not found or invalid message batch ID.")
+            return
+    
+        except OSError:
+            self.send_error(500, "(Server Error) Could not read channel messages file.")
+            return
+        
+        
+        # Success! Send channel messages
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        
+        response = channel_messages
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+    
+    
     def do_GET(self):
         cookies = SimpleCookie(self.headers.get('Cookie'))
         try:
@@ -323,81 +405,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             return
 
         if path.startswith("/channels/"):
-            regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
-            
-            if regex_match is None:
-                self.send_error(400, "Invalid channel ID.")
-                return
-            
-            channel_id, sub = regex_match.groups()
-            sub = "" if sub == None else sub.strip("/")
-            
-            if not self.validate_auth(token, username, True):
-                return
-            
-            if not sub:
-                self.path = "/index.html"
-                super().do_GET()
-                return
-            
-            	
-            channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
-            
-            if sub == "about":
-                channel_meta_file = os.path.join(channel_dir, "meta.json")
-                
-                try:
-                    with open(channel_meta_file, 'r') as file:
-                        channel_meta = json.load(file)
-                
-                except FileNotFoundError:
-                    self.send_error(404, "Channel not found.")
-                    return
-
-                except OSError:
-                    self.send_error(500, "(Server Error) Could not read channel meta file.")
-                    return
-                                
-                # Success, send channel about
-                self.send_response(200)
-                self.send_header('Content-Type', "text/json")
-                self.end_headers()
-                
-                response = channel_meta
-                self.wfile.write(bytes(json.dumps(response), "utf8"))
-                return
-            
-            
-            if sub == "messages":
-                try:
-                    batch_id = int(query_components['batch'])
-                except (ValueError, KeyError):
-                    self.send_error(400, "Invalid or unspecified messages batch ID.")
-                    return
-                
-                channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
-                
-                try:
-                    with open(channel_messages_file, 'r') as file:
-                        channel_messages = json.load(file)
-                        
-                except FileNotFoundError:
-                    self.send_error(404, "Channel not found or invalid message batch ID.")
-                    return
-            
-                except OSError:
-                    self.send_error(500, "(Server Error) Could not read channel messages file.")
-                    return
-                
-                
-                # Success! Send channel messages
-                self.send_response(200)
-                self.send_header('Content-Type', "text/json")
-                self.end_headers()
-                
-                response = channel_messages
-                self.wfile.write(bytes(json.dumps(response), "utf8"))
-                return
+            self.do_GET_channels(path, query_components, token, username)
+            return
 
 
         super().do_GET()
