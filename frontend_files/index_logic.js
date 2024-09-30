@@ -59,6 +59,9 @@ function loadAccountMeta(username) {
             accountMetaCache[username] = response;
             let displayname = response['displayname'];
             replaceMessageAuthorName(username, displayname);
+            if (username == selfUsername) {
+                insertSelfDisplayname(displayname);
+            }
             // return [username, displayname];
 
         } else {
@@ -71,6 +74,12 @@ function loadAccountMeta(username) {
     let url = `/users/${username}/about/`;
     xhr.open('GET', url, true);
     xhr.send(null);
+}
+
+
+function insertSelfDisplayname(displayname) {
+    let displaynameNode = document.getElementById("sidebar-loginfo-displayname");
+    displaynameNode.innerText = displayname;
 }
 
 
@@ -183,13 +192,28 @@ function loadChannelAbout() {
 }
 
 
+function logout() {
+    console.log("Logging out");
+    deleteCookie("token");
+    deleteCookie("username");
+    window.location.replace("/login.html");
+}
+
+
+function deleteAccount() {
+    if (confirm("Delete your account?\nThis action is irreversible!")) {
+        alert("hawk tuah");
+    }
+}
+
+
+
 var channelAbout = null;
 var accountMetaCache = {};
+var selfUsername = getCookie("username");
 
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");
     loadChannelAbout();
+    loadAccountMeta(selfUsername);
 }
-
-// worked on: account loading stuff (not tested! async may be scuffed)
-// todo: everything ^ server side 

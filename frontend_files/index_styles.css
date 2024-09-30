@@ -3,6 +3,35 @@ body {
     flex-direction: column;
     flex-wrap: wrap;
     padding: 1em 1em 1em 1em;
+    margin: 0;
+    height: 100%;
+}
+
+#flex-container {
+    display: flex;
+    /* background-color: rgb(110, 71, 33); */
+    /* height: 100%; */
+    gap: 1em;
+}
+
+
+#sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 15em;
+    padding: 1em;
+    
+    border-radius: 5px;
+    background-color: var(--tenary-color);
+}
+
+#page {
+    display: flex;
+    flex-direction: column;
+    width: 85%;
+    min-width: 0;
+    max-width: 85%;
+    flex: 1;
 }
 
 

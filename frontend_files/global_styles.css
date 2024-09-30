@@ -64,3 +64,12 @@ code {
     background-color: var(--tenary-color);
     padding: 2px;
 }
+
+
+.dangerous {
+    color: rgb(221, 25, 18);
+}
+
+.dangerous:hover {
+    color: rgb(172, 26, 21);
+}

@@ -190,7 +190,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             post_data = json.loads(post_data_raw)
         except ValueError:
             self.send_error(400, "Content Type should be JSON.")
-
+            return
         
         if not self.validate_auth(token, username, False):
             return
@@ -198,15 +198,20 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             sent_message_text = post_data["text"].strip()
             channel_id = post_data["channel"]
-        except KeyError:
+            assert sent_message_text and channel_id
+        except (KeyError, AssertionError):
             self.send_error(400, "JSON object needs to have attributes: 'text', 'channel'.")
+            return
     
         if not 1 <= len(sent_message_text) < 4096:
             self.send_error(400, "Message text should have a length between 1 and 4096.")
+            return
         
         
         channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         channel_meta_file = os.path.join(channel_dir, "meta.json")
+        
+        print(channel_meta_file)
         
         try:
             with open(channel_meta_file, 'r') as file:

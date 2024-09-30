@@ -12,11 +12,26 @@
     <body>
         <h1>Pigon Messenger</h1>
 
-        <div id="messages"></div>
+        <div id="flex-container">
+            <div id="sidebar">
+                <div id="sidebar-loginfo">
+                    <span>
+                        You're logged in as <strong id="sidebar-loginfo-displayname">Unknown User</strong>.
+                    </span>
+                </div>
+                <br>
+                <a href="javascript:logout()">Log out</a>
+                <a href="javascript:deleteAccount()" class="dangerous">Delete account</a>
+            </div>
 
-        <div id="sendbar">
-            <input type="text" name="send-message-text" id="send-message-text">
-            <button id="send-message-confirm" onclick="sendMessage();">Send</button>
+            <div id="page">
+                <div id="messages"></div>
+                <div id="sendbar">
+                    <input type="text" name="send-message-text" id="send-message-text">
+                    <button id="send-message-confirm" onclick="sendMessage();">Send</button>
+                </div>
+        </div>
+
         </div>
 
         <script src="/global_logic.js" async defer></script>
