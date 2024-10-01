@@ -112,7 +112,7 @@ function textParser(text) {
     let italicUnderOpenIndex = -1;
     let underlineOpenIndex = -1;
     
-    console.warn(text)
+    // console.warn(text)
 
     while (i < text.length) {
         let escapingNow = false;
@@ -139,7 +139,7 @@ function textParser(text) {
 
 
             case '*':
-                console.log(i, escaping, italicStarOpenIndex, boldOpenIndex, text[i+1])
+                // console.log(i, escaping, italicStarOpenIndex, boldOpenIndex, text[i+1])
                 if (escaping || codeBlockOpenIndex != -1 || codeOpenIndex != -1) {
                     tokens.push('*');
                     i += 1;

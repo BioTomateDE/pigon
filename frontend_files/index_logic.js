@@ -5,6 +5,11 @@ document.getElementById('send-message-text').onkeydown = e => {
 };
 
 
+function getChannelID() {
+    return Number(document.location.pathname.split("/")[2]);
+}
+
+
 function sendMessage() {
     var messageContainer = document.getElementById('send-message-text');
     var messageText = messageContainer.value.trim();
@@ -16,7 +21,7 @@ function sendMessage() {
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
 
-    let channelID = Number(document.location.pathname.split("/")[2]);
+    let channelID = getChannelID();
 
     const body = JSON.stringify({
         channel: channelID,
@@ -25,10 +30,10 @@ function sendMessage() {
 
     xhr.onload = () => {
         if (xhr.readyState == 4 && xhr.status == 200 || xhr.status == 201) {
-            console.log(JSON.parse(xhr.responseText));
+            console.log("Response to /send_message:", JSON.parse(xhr.responseText));
         } else {
-            console.warn(`Error: ${xhr.status} - ${xhr.statusText}`);
-            console.log("Error Message:", JSON.parse(xhr.responseText)['error']);
+            console.warn(`Error to /send_message: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message to /send_message:", JSON.parse(xhr.responseText)['error']);
         }
     };
     xhr.send(body);
@@ -38,6 +43,7 @@ function sendMessage() {
 function replaceMessageAuthorName(username, displayname) {
     let placeholderAuthorNodes = document.getElementsByClassName("message-author-placeholder");
     console.log(`Replacing username ${username} with displayname "${displayname}"`);
+    // console.log([...placeholderAuthorNodes][0].innerHTML);
 
     [...placeholderAuthorNodes].forEach(authorNode => {
         if (authorNode.innerText == username) {
@@ -49,6 +55,16 @@ function replaceMessageAuthorName(username, displayname) {
 
 
 function loadAccountMeta(username) {
+    // console.log("abasfhfbhasbasdgfj", username, Object.keys(accountMetaCache))
+    if (username in accountMetaCache) {
+        let displayname = accountMetaCache[username]['displayname'];
+        replaceMessageAuthorName(username, displayname);
+        if (username == selfUsername) {
+            insertSelfDisplayname(displayname);
+        }
+        return;
+    }
+
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
@@ -65,8 +81,8 @@ function loadAccountMeta(username) {
             // return [username, displayname];
 
         } else {
-            console.warn(`Error: ${xhr.status} - ${xhr.statusText}`);
-            console.log("Error Message:", response['error']);
+            console.warn(`Error to /USER/about: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message to USER/about:", response['error']);
             // return [null, null];
         }
     }
@@ -121,11 +137,12 @@ function loadMessages(batchID) {
             let messagesDiv = document.getElementById("messages");
 
             messages.forEach(message => {
-                if (!(message['author'] in accountMetaCache)) {
-                    // v Placeholder so not every message will trigger this; it takes time to load
-                    accountMetaCache[message['author']] = null;
-                    loadAccountMeta(message['author']);
-                }
+                // if (!(message['author'] in accountMetaCache)) {
+                //     // v Placeholder so not every message will trigger this; it takes time to load
+                //     accountMetaCache[message['author']] = null;
+                //     loadAccountMeta(message['author']);
+                // }
+                loadAccountMeta(message['author']);
 
                 let nodeDiv = document.createElement("div");
                 nodeDiv.classList.add("message");
@@ -158,7 +175,8 @@ function loadMessages(batchID) {
         }
 
         else if (xhr.readyState == 4) {
-            console.warn(xhr.status, xhr.statusText, JSON.parse(xhr.responseText));
+            console.warn(`Error to /channels/CHANNEL/messages: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message to /channels/CHANNEL/messages:", response['error']);
         }
     }
 
@@ -174,7 +192,7 @@ function loadChannelAbout() {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             channelAbout = JSON.parse(xhr.responseText);
-            console.log(channelAbout);
+            console.log("Channel about:", channelAbout);
             console.log("Got channel about. Loading messages.");
             loadMessages(channelAbout['latestMessageBatch']);
         }
@@ -193,6 +211,33 @@ function loadChannelAbout() {
     let url = fixLocalURL("about");
     xhr.open('GET', url, true);
     xhr.send(null);
+}
+
+
+function connectWebSocket() {
+    const sock = new WebSocket(`ws://${window.location.hostname}:8982`);
+    
+    sock.onopen = (event) => {
+        console.log("WebSocket opened. Sent token and username.");
+        sock.send(`${token} ${username} ${channelID}`);
+    };
+
+    sock.onerror = (event) => {
+        console.warn("WebSocket connection closed with error:", event);
+    };
+
+    sock.onclose = (event) => {
+        console.warn("WebSocket connection closed by server:", event);
+        // TODO reconnect potentially
+    }
+
+    sock.onmessage = (event) => {
+        console.log("Received message from WebSocket:", event.data);
+    }
+
+    let token = getCookie("token");
+    let username = getCookie("username");
+    let channelID = getChannelID();
 }
 
 
@@ -219,5 +264,8 @@ var selfUsername = getCookie("username");
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");
     loadChannelAbout();
+    console.log("Channel about loaded. Loading self username.");
     loadAccountMeta(selfUsername);
+    // console.log("Self username loaded. Connecting WebSocket.");
+    connectWebSocket();
 }
