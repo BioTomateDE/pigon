@@ -17,6 +17,18 @@ function sendMessage() {
     console.log("Sending", messageText);
     messageContainer.value = "";
 
+    let nowSeconds = Math.floor(new Date() / 1000);
+    let tempID = Math.floor(new Date());
+
+    let message = {
+        author: selfUsername,
+        text: messageText,
+        timestamp: nowSeconds,
+        tempID: tempID
+    }
+    appendMessage(message, true, true, selfDisplayname);
+    // replaceMessageAuthorName(selfUsername, selfDisplayname);
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -26,6 +38,7 @@ function sendMessage() {
     const body = JSON.stringify({
         channel: channelID,
         text: messageText,
+        tempID: tempID,
     });
 
     xhr.onload = () => {
@@ -76,6 +89,7 @@ function loadAccountMeta(username) {
             let displayname = response['displayname'];
             replaceMessageAuthorName(username, displayname);
             if (username == selfUsername) {
+                selfDisplayname = displayname;
                 insertSelfDisplayname(displayname);
             }
             // return [username, displayname];
@@ -127,6 +141,52 @@ function textFormatting(text) {
 }
 
 
+function appendMessage(message, unconfirmed = false, useTempID = false, displayname) {
+    let messagesDiv = document.getElementById("messages");
+    let nodeDiv = document.createElement("div");
+    nodeDiv.classList.add("message");
+    if (unconfirmed) {
+        nodeDiv.classList.add("message-unconfirmed");
+    }
+
+    let nodeAuthor = document.createElement("span");
+    if (typeof displayname === "undefined") {
+        nodeAuthor.innerText = message['author'];
+        nodeAuthor.classList.add("message-author-placeholder");
+    }
+    else {
+        nodeAuthor.innerText = displayname;
+    }
+    nodeAuthor.classList.add("message-author");
+    nodeDiv.appendChild(nodeAuthor);
+
+    let nodeTimestamp = document.createElement("span");
+    let date = new Date(message['timestamp'] * 1000);
+    let dateFormatted = formatDate(date);
+    nodeTimestamp.innerText = dateFormatted;
+    nodeTimestamp.classList.add("message-timestamp");
+    nodeDiv.appendChild(nodeTimestamp);
+
+    if (useTempID && typeof message['tempID'] !== "undefined") {
+        let nodeTempID = document.createElement("span");
+        nodeTempID.innerText = message['tempID'];
+        nodeTempID.classList.add("message-tempid");
+        nodeDiv.appendChild(nodeTempID);
+    }
+
+    let nodeBr = document.createElement("br");
+    nodeDiv.appendChild(nodeBr);
+
+    let nodeText = document.createElement("span");
+    nodeText.innerHTML = textParser(message['text']);
+    nodeText.classList.add("message-text");
+    nodeDiv.appendChild(nodeText);
+
+    messagesDiv.appendChild(nodeDiv);
+
+    messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+}
+
 
 function loadMessages(batchID) {
     var xhr = new XMLHttpRequest();
@@ -134,43 +194,10 @@ function loadMessages(batchID) {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             let messages = JSON.parse(xhr.responseText);
-            let messagesDiv = document.getElementById("messages");
 
             messages.forEach(message => {
-                // if (!(message['author'] in accountMetaCache)) {
-                //     // v Placeholder so not every message will trigger this; it takes time to load
-                //     accountMetaCache[message['author']] = null;
-                //     loadAccountMeta(message['author']);
-                // }
+                appendMessage(message);
                 loadAccountMeta(message['author']);
-
-                let nodeDiv = document.createElement("div");
-                nodeDiv.classList.add("message");
-
-                let nodeAuthor = document.createElement("span");
-                nodeAuthor.innerText = message['author'];
-                nodeAuthor.classList.add("message-author");
-                nodeAuthor.classList.add("message-author-placeholder");
-                nodeDiv.appendChild(nodeAuthor);
-
-                let nodeTimestamp = document.createElement("span");
-
-                let date = new Date(message['timestamp'] * 1000);
-                let dateFormatted = formatDate(date);
-
-                nodeTimestamp.innerText = dateFormatted;
-                nodeTimestamp.classList.add("message-timestamp");
-                nodeDiv.appendChild(nodeTimestamp);
-
-                let nodeBr = document.createElement("br");
-                nodeDiv.appendChild(nodeBr);
-
-                let nodeText = document.createElement("span");
-                nodeText.innerHTML = textParser(message['text']);
-                nodeText.classList.add("message-text");
-                nodeDiv.appendChild(nodeText);
-
-                messagesDiv.appendChild(nodeDiv);
             });
         }
 
@@ -216,7 +243,7 @@ function loadChannelAbout() {
 
 function connectWebSocket() {
     const sock = new WebSocket(`ws://${window.location.hostname}:8982`);
-    
+
     sock.onopen = (event) => {
         console.log("WebSocket opened. Sent token and username.");
         sock.send(`${token} ${username} ${channelID}`);
@@ -228,16 +255,33 @@ function connectWebSocket() {
 
     sock.onclose = (event) => {
         console.warn("WebSocket connection closed by server:", event);
-        // TODO reconnect potentially
+        setTimeout(connectWebSocket, 1000);
     }
 
     sock.onmessage = (event) => {
-        console.log("Received message from WebSocket:", event.data);
+        let response = JSON.parse(event.data);
+        console.log("Received message from WebSocket:", response);
+        appendMessage(response, false, false);
+        loadAccountMeta(response['author']);
+        let tempID = response['tempID'];
+        if (typeof tempID !== "undefined") {
+            removeUnconfirmedMessage(tempID);
+        }
     }
 
     let token = getCookie("token");
     let username = getCookie("username");
     let channelID = getChannelID();
+}
+
+
+function removeUnconfirmedMessage(tempID) {
+    let messageTempIDNodes = document.querySelectorAll(".message .message-tempid");
+    messageTempIDNodes.forEach(messageTempIDNode => {
+        if (messageTempIDNode.innerText == tempID) {
+            messageTempIDNode.parentNode.remove();
+        }
+    });
 }
 
 
@@ -260,6 +304,7 @@ function deleteAccount() {
 var channelAbout = null;
 var accountMetaCache = {};
 var selfUsername = getCookie("username");
+var selfDisplayname = null;
 
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");

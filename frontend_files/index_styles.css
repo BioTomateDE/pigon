@@ -80,8 +80,6 @@ body {
 
 .message-text {
     position: relative;
-    word-wrap: break-all;
-    overflow-wrap: break-all;
     text-wrap: wrap;
     /* white-space: normal; */
 
@@ -98,4 +96,21 @@ body {
     word-wrap: break-all;
     overflow-wrap: break-all;
     /* white-space: normal; */
+}
+
+.message-unconfirmed {
+    color: var(--secondary-text-color);
+}
+
+/* .message-unconfirmed.message-text {
+    color: var(--secondary-text-color);
+}
+
+.message-unconfirmed.message-author {
+    color: var(--secondary-text-color);
+} */
+
+
+.message-tempid {
+    display: none;
 }

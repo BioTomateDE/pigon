@@ -4,17 +4,14 @@ from http.cookies import SimpleCookie
 import os
 import json
 import re
+import threading
 import time
 import hashlib
 from urllib.parse import urlparse
 import uuid
-import bs4
-
-
-# -------- Globals --------
-# WARNING: / or \ SHOULD NEVER BE ALLOWED FOR PATH SECURITY
-USERNAME_CHARSET = set("abcdefghijklmnopqrstuvwxyz-_")
-MESSAGE_BATCH_SIZE = 30
+import asyncio
+from websockets import ConnectionClosed, WebSocketServerProtocol
+from websockets.server import serve as ws_serve
 
 
 # -------- Utility --------
@@ -28,10 +25,99 @@ def validate_username(username: str) -> bool:
     
 
 def generate_token() -> str:
+    # TODO more security????
     token = uuid.uuid4().hex
     return token
 
+class WSConnectedClient:
+    def __init__(self, sock:WebSocketServerProtocol, username:str, token:str, channel_id:int) -> None:
+        self.sock = sock
+        self.username = username
+        self.token = token
+        self.channel_id = channel_id
+
+    def __hash__(self):
+        return hash((self.username, self.token, self.channel_id))
     
+    def __eq__(self, other):
+        if not isinstance(other, WSConnectedClient):
+            raise ValueError(f"Why would you compare {type(self)} with {type(other)}?")
+        return (self.username == other.username and
+                self.token == other.token and
+                self.channel_id == other.channel_id)
+
+
+def ws_send_error(sock: WebSocketServerProtocol, message: str):
+    response = {'error': message}
+    sock.send(bytes(json.dumps(response), 'utf-8'))
+
+
+async def ws_client_connect(sock: WebSocketServerProtocol):
+    global ws_clients_by_channel
+    try:
+        async for message in sock:
+            print("Received a message:", message)
+            
+            try:
+                token, username, channel_id = message.split(" ")
+                channel_id = int(channel_id)
+                assert len(username) <= 28 and channel_id >= 0
+            except (ValueError, AssertionError):
+                ws_send_error(sock, "Format should be: \"{TOKEN} {USERNAME} {CHANNEL_ID}\"")
+                return
+            
+            user_dir = os.path.join(backend_dir, "accounts", username)
+            user_meta_file = os.path.join(user_dir, "meta.json")
+            
+            try:
+                with open(user_meta_file, 'r') as file:
+                    user_meta = json.load(file)
+            except FileNotFoundError:
+                ws_send_error(sock, "No user belongs to that username")
+                return
+            except OSError:
+                ws_send_error(sock, "Internal server error (could not read user meta file)")
+                return
+            
+            m = hashlib.sha256()
+            m.update(bytes(token, 'utf-8'))
+            token_hash = m.hexdigest()
+            if token_hash not in user_meta['validTokens']:
+                ws_send_error(sock, "Invalid token")
+                return
+            
+            # Success! Add user to connected clients list
+            print("New client connected:", username, channel_id)
+            
+            client = WSConnectedClient(sock, username, token, channel_id)
+            if ws_clients_by_channel.get(channel_id) is not None and client in ws_clients_by_channel[channel_id]:
+                print("Client is already connected; removing other connection.")
+                ws_clients_by_channel[channel_id].remove(client)
+            
+            try:
+                ws_clients_by_channel[channel_id].append(client)
+            except KeyError:
+                ws_clients_by_channel[channel_id] = [client]
+            
+            # await sock.send("ok")  # TODO placeholder
+        
+    except ConnectionClosed:
+        print("Client disconnected:", sock.id)
+
+
+async def ws_main():
+    print("Started Websocket server.")
+    async with ws_serve(ws_client_connect, "0.0.0.0", 8982):
+        await asyncio.Future()
+
+
+# -------- Globals --------
+# WARNING: / or \ SHOULD NEVER BE ALLOWED FOR PATH SECURITY
+USERNAME_CHARSET = set("abcdefghijklmnopqrstuvwxyz-_")
+MESSAGE_BATCH_SIZE = 30
+ws_clients_by_channel: dict[int, list[WSConnectedClient]] = {}
+    
+
 class HTTPHandler(SimpleHTTPRequestHandler):
     """This handler uses server.base_path instead of always using os.getcwd()"""
 
@@ -194,13 +280,14 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         
         if not self.validate_auth(token, username, False):
             return
-
+        
         try:
             sent_message_text = post_data["text"].strip()
             channel_id = post_data["channel"]
-            assert sent_message_text and channel_id
+            temp_id = post_data["tempID"]
+            assert sent_message_text and channel_id and temp_id
         except (KeyError, AssertionError):
-            self.send_error(400, "JSON object needs to have attributes: 'text', 'channel'.")
+            self.send_error(400, "JSON object needs to have attributes: 'text', 'channel', 'tempID'.")
             return
     
         if not 1 <= len(sent_message_text) < 4096:
@@ -269,9 +356,26 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             return
 
         # Success! Append message to latest message batch (or create a new one if necessary)
+        #          Also send message to every connected websocket client of that channel
         self.send_response(200)
         self.send_header('Content-Type', "text/json")
         self.end_headers()
+        
+        if ws_clients_by_channel.get(channel_id) is not None:
+            for client in ws_clients_by_channel[channel_id]:
+                print(f"Sending message to WS Client {client.username}")
+                
+                if client.username == username:
+                    message_obj["tempID"] = temp_id
+                response_ws = json.dumps(message_obj)
+                if client.username == username:
+                    del message_obj["tempID"]
+                
+                try:
+                    asyncio.run(client.sock.send(response_ws))
+                except ConnectionClosed:
+                    print(f"WS Connection to {client.username} was closed!")
+                # print("DEBUG after send")
 
         response = {}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
@@ -303,13 +407,19 @@ class HTTPHandler(SimpleHTTPRequestHandler):
     def do_GET_channels(self, path:str, query_components:dict, token:str, username:str):
         regex_match = re.match(r"/channels/(\d+)(/|/messages/?|/about/?)?$", path)
         if regex_match is None:
-            self.send_error(400, "Invalid channel ID.")
+            self.send_error(400, "Invalid channel ID or URI.")
             return
-        
+       
         channel_id, sub = regex_match.groups()
+        try:
+            channel_id = int(channel_id)
+        except ValueError:
+            self.send_error(400, "Invalid channel ID.")
+            
         sub = "" if sub == None else sub.strip("/")
+        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         
-        if not self.validate_auth(token, username, True):
+        if not self.validate_auth(token, username, False):
             return
         
         if not sub:
@@ -317,17 +427,33 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             super().do_GET()
             return
         
+        channel_meta_file = os.path.join(channel_dir, "meta.json")
+        try:
+            with open(channel_meta_file, 'r') as file:
+                channel_meta = json.load(file)
+                
+        except FileNotFoundError:
+            self.send_error(404, "Channel not found.")
+            return
+        
+        except OSError:
+            self.send_error(500, "(Server Error) Could not read channel meta file.")
+            return
+        
+        if username not in channel_meta['members']:
+            self.send_error(403, "You don't have permission to view this channel.")
+            return
+        
         if sub == "about":
-            self.do_GET_channels_about(query_components, channel_id)
+            self.do_GET_channels_about(query_components, channel_dir)
         elif sub == "messages":
-            self.do_GET_channel_messages(query_components, channel_id)
+            self.do_GET_channel_messages(query_components, channel_dir)
         else:
             self.send_error(404, "This error can only happen if the regex is messed up.")
             return
     
     
-    def do_GET_channels_about(self, query_components:dict, channel_id:int):
-        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
+    def do_GET_channels_about(self, query_components:dict, channel_dir):
         channel_meta_file = os.path.join(channel_dir, "meta.json")
         
         try:
@@ -351,14 +477,13 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
     
     
-    def do_GET_channel_messages(self, query_components:dict, channel_id:int):
+    def do_GET_channel_messages(self, query_components:dict, channel_dir:str):
         try:
             batch_id = int(query_components['batch'])
         except (ValueError, KeyError):
             self.send_error(400, "Invalid or unspecified messages batch ID.")
             return
         
-        channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
         
         try:
@@ -366,7 +491,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 channel_messages = json.load(file)
                 
         except FileNotFoundError:
-            self.send_error(404, "Channel not found or invalid message batch ID.")
+            self.send_error(404, "Message batch not found.")
             return
     
         except OSError:
@@ -524,4 +649,6 @@ httpd = HTTPServer(web_dir, ("", 8000))
 
 if __name__ == "__main__":
     print("Started.")
+    # v TODO less disgusting?????
+    threading.Thread(target=asyncio.run, args=(ws_main(),), daemon=True).start()
     httpd.serve_forever()
