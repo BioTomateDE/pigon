@@ -95,6 +95,8 @@ function textFormatting(text) {
     const reBold = /(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*/g;
     const reItalic = /(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*/g;
     const reUnderlined = /(?<!\\)(?:\\\\)*_([^\s]+?)(?<!\\)(?:\\\\)*_/g;
+    const reEscaping = /\\([\*_`])/g;
+    const reDoubleBackslashes = /\\\\/g;
     // TODO spoilers
 
     text = text.replaceAll(reCodeBlock, `<pre><code>$1</code></pre>`)
@@ -102,6 +104,8 @@ function textFormatting(text) {
         .replaceAll(reBold, "<strong>$1</strong>")
         .replaceAll(reItalic, "<em>$1</em>")
         .replaceAll(reUnderlined, "<u>$1</u>")
+        .replaceAll(reEscaping, "$1")
+        .replaceAll(reDoubleBackslashes, "\\")
 
     return text;
 }
@@ -145,7 +149,7 @@ function loadMessages(batchID) {
                 nodeDiv.appendChild(nodeBr);
 
                 let nodeText = document.createElement("span");
-                nodeText.innerHTML = textFormatting(message['text']);
+                nodeText.innerHTML = textParser(message['text']);
                 nodeText.classList.add("message-text");
                 nodeDiv.appendChild(nodeText);
 

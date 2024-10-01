@@ -297,6 +297,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.do_POST_send_message(token=token, username=username)
         else:
             self.send_error(404, "Invalid post URI.")
+            return
     
     
     def do_GET_channels(self, path:str, query_components:dict, token:str, username:str):
@@ -322,6 +323,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.do_GET_channel_messages(query_components, channel_id)
         else:
             self.send_error(404, "This error can only happen if the regex is messed up.")
+            return
     
     
     def do_GET_channels_about(self, query_components:dict, channel_id:int):
