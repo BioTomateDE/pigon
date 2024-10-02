@@ -114,3 +114,16 @@ body {
 .message-tempid {
     display: none;
 }
+
+#channel-header {
+    padding: 0em 0em 0.7em 1em;
+}
+
+#channel-header-name {
+    margin: 0.2em 0em 0.3em 0em;
+}
+
+#channel-header-members {
+    color: var(--secondary-text-color);
+    margin: 0.2em 0em 0.2em 0.15em;
+}

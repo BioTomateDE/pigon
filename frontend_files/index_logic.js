@@ -219,6 +219,12 @@ function loadChannelAbout() {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             channelAbout = JSON.parse(xhr.responseText);
+            let channelHeaderDiv = document.querySelector("#channel-header");
+            let channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
+            let channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
+            channelNameNode.innerText = channelAbout['name'];
+            channelMembersNode.innerText = channelAbout['members'].join(", ");
+
             console.log("Channel about:", channelAbout);
             console.log("Got channel about. Loading messages.");
             loadMessages(channelAbout['latestMessageBatch']);
@@ -231,6 +237,9 @@ function loadChannelAbout() {
                 deleteCookie("token");
                 deleteCookie("username");
                 console.log("Token was deleted.");
+                // window.location.pathname = "/login.html";
+                window.location.replace("/login.html");
+                // TODO display error message
             }
         }
     }
@@ -290,6 +299,29 @@ function logout() {
     deleteCookie("token");
     deleteCookie("username");
     window.location.replace("/login.html");
+}
+
+function logoutAll() {
+    if (!confirm("Log out of all other devices?")) return;
+
+    console.log("Logging out of all other devices.");
+    var xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState == 4 && xhr.status == 200) {
+            response = JSON.parse(xhr.responseText);
+            alert("Logged out of all other devices.");
+            console.log("Response to /logout_all_other_devices:", response);
+        }
+
+        else if (xhr.readyState == 4) {
+            console.warn(`Error to /logout_all_other_devices: ${xhr.status} - ${xhr.statusText}`);
+            console.log("Error Message to /logout_all_other_devices:", response['error']);
+        }
+    }
+
+    xhr.open("POST", "/logout_all_other_devices", true);
+    xhr.send(null);
 }
 
 

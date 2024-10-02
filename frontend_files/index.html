@@ -21,11 +21,20 @@
                 </div>
                 <br>
                 <a href="javascript:logout()">Log out</a>
+                <a href="javascript:logoutAll()" class="dangerous">Log out of all other devices</a>
                 <a href="javascript:deleteAccount()" class="dangerous">Delete account</a>
+                <br>
+                <a href="javascript:createChannel()">Create channel</a>
             </div>
 
             <div id="page">
+                <div id="channel-header">
+                    <h2 id="channel-header-name">Channel Name</h2>
+                    <p id="channel-header-members">Member 1, Member 2, Member 3</p>
+                </div>
+
                 <div id="messages"></div>
+
                 <div id="sendbar">
                     <input type="text" name="send-message-text" id="send-message-text">
                     <button id="send-message-confirm" onclick="sendMessage();">Send</button>
