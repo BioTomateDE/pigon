@@ -22,7 +22,9 @@ def validate_username(username: str) -> bool:
         and "__" not in username
         and "--" not in username
     )
-    
+
+
+class FileReadError(Exception): ...
 
 def generate_token() -> str:
     # TODO more security????
@@ -133,6 +135,29 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         response = {"error": message}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
+    
+    
+    def read_json_file(
+        self,
+        file_path:str,
+        error_message_notfound: str = "The requested file does not exist.",
+        error_message_os: str = ""
+        ):
+        """Tries to read a JSON file in the server backend using the provided absolute `file_path`.\n
+        If it fails, it will respond to the HTTP request automatically and then raise a `FileReadError`."""
+        try:
+            with open(file_path, 'r') as file:
+                return json.load(file)
+        
+        except FileNotFoundError:
+            self.send_error(404, error_message_notfound)
+            raise FileReadError
+        
+        except OSError:
+            if error_message_os: error_message_os += ' '
+            self.send_error(500, f"(Server Error) Could not read {error_message_os}file.")
+            raise FileReadError
+        
 
 
     def do_POST_register(self, token:str, username:str):
@@ -278,7 +303,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(400, "Content Type should be JSON.")
             return
         
-        if not self.validate_auth(token, username, False):
+        if not self.validate_auth(token, username):
             return
         
         try:
@@ -419,7 +444,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         sub = "" if sub == None else sub.strip("/")
         channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         
-        if not self.validate_auth(token, username, False):
+        if not self.validate_auth(token, username):
             return
         
         if not sub:
@@ -554,6 +579,45 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(account_meta_public), 'utf-8'))
     
     
+    def do_GET_self_channels(self, token:str, username:str):
+        if not self.validate_auth(token, username):
+            return
+        
+        user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
+        try:
+            with open(user_meta_file, 'r') as file:
+                user_meta = json.load(file)
+        
+        except FileNotFoundError:
+            self.send_error(401, "There is no user associated with this username.")
+            return
+    
+        except OSError:
+            self.send_error(500, "(Server Error) Could not read user meta file.")
+            return
+        
+        channel_names: dict[int, str] = {}
+        
+        # Get names of all channels
+        for channel_id in user_meta['channels']:
+            channel_meta_file = os.path.join(backend_dir, "channels", str(channel_id), "meta.json")
+            try:
+                with open(channel_meta_file, 'r') as file:
+                    channel_meta = json.load(file)
+            
+            except (FileNotFoundError, OSError):
+                channel_name = "Unknown Channel"
+            else:
+                channel_name = channel_meta["name"]
+            
+            channel_names[channel_id] = channel_name
+        
+        self.send_response(200)
+        self.send_header("Content-Type", "text/json")
+        self.end_headers()
+        self.wfile.write(bytes(json.dumps(channel_names), 'utf-8'))
+    
+    
     def do_GET(self):
         cookies = SimpleCookie(self.headers.get('Cookie'))
         try:
@@ -590,22 +654,16 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.do_GET_users(path, query_components, token, username)
             return
 
+        if path == "/get_self_channels":
+            self.do_GET_self_channels(token, username)
+            return
 
         super().do_GET()
     
     
-    def validate_auth(self, token:str, username:str, redirect_if_not_exist:bool) -> bool:
+    def validate_auth(self, token:str, username:str) -> bool:
         if token is None or username is None:
-            if redirect_if_not_exist:
-                self.send_response(303)
-                self.send_header('Location', "/login.html")  # redirect to login.html if not logged in
-                self.send_header('Content-Type', "text/json")
-                self.end_headers()
-                response = {}
-            else:
-                self.send_error(401, "Not authorized. Please provide token and username.")
-                
-            self.wfile.write(bytes(json.dumps(response), "utf8"))
+            self.send_error(401, "Not authorized. Please provide token and username.")
             return False
         
         user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
