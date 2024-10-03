@@ -82,9 +82,8 @@ function loadAccountMeta(username) {
 
     xhr.onreadystatechange = () => {
         if (xhr.readyState != 4) return;
-        let response = JSON.parse(xhr.responseText);
-
         if (xhr.status == 200 || xhr.status == 201) {
+            let response = JSON.parse(xhr.responseText);
             accountMetaCache[username] = response;
             let displayname = response['displayname'];
             replaceMessageAuthorName(username, displayname);
@@ -96,6 +95,7 @@ function loadAccountMeta(username) {
 
         } else {
             console.warn(`Error to /USER/about: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
             console.log("Error Message to USER/about:", response['error']);
             // return [null, null];
         }
@@ -203,6 +203,7 @@ function loadMessages(batchID) {
 
         else if (xhr.readyState == 4) {
             console.warn(`Error to /channels/CHANNEL/messages: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /channels/CHANNEL/messages:", response['error']);
         }
     }
@@ -316,6 +317,7 @@ function logoutAll() {
 
         else if (xhr.readyState == 4) {
             console.warn(`Error to /logout_all_other_devices: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /logout_all_other_devices:", response['error']);
         }
     }
