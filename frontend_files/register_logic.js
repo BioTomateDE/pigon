@@ -26,6 +26,13 @@ function submitRegister() {
             console.log(response);
             errorMessage.style['display'] = 'none';
             infoMessage.style['display'] = 'flex';
+
+            let generatedToken = response['generatedToken']
+            let tokenExpiryDate = new Date();
+            tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
+            setCookie('token', generatedToken, tokenExpiryDate);
+            setCookie('username', username, tokenExpiryDate);
+            
         } else {
             console.log(`Error: ${xhr.status}`);
             errorMessage.style['display'] = 'flex';

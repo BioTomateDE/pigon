@@ -1,3 +1,4 @@
+from base64 import b64encode
 import datetime
 from http.server import HTTPServer as BaseHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
@@ -25,11 +26,31 @@ def validate_username(username: str) -> bool:
 
 
 class FileReadError(Exception): ...
+class FileWriteError(Exception): ...
 
 def generate_token() -> str:
-    # TODO more security????
-    token = uuid.uuid4().hex
+    random_bytes = os.urandom(128)
+    token = str(b64encode(random_bytes, bytes("-_", 'utf-8')), 'utf-8')
     return token
+
+
+def hash_password(password:str, username:str) -> str:
+    m = hashlib.sha256()
+    m.update(bytes(password, 'utf-8'))
+    salt1 = bytes("o8i3Sidf/B2", 'utf-8')
+    m.update(salt1)
+    salt2 = bytes(username[::-1], 'utf-8')
+    m.update(salt2)
+    password_hash = m.hexdigest()
+    return password_hash
+
+
+def hash_token(token:str) -> str:
+    m = hashlib.sha256()
+    m.update(bytes(token, 'utf-8'))
+    token_hashed = m.hexdigest()
+    return token_hashed
+
 
 class WSConnectedClient:
     def __init__(self, sock:WebSocketServerProtocol, username:str, token:str, channel_id:int) -> None:
@@ -158,6 +179,35 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(500, f"(Server Error) Could not read {error_message_os}file.")
             raise FileReadError
         
+        
+    def write_json_file(
+        self,
+        file_path: str,
+        json_object,
+        error_message_os: str = "",
+        create_file: bool = False,
+        error_message_notfound: str = "(Server Error) Did not create {}file because it should already exist."
+    ):
+        """Tries to write to a JSON file in the server backend using the provided absolute `file_path`.\n
+        If `create_file` is False and the file does not already exist,
+        it will respond to the HTTP request automatically using `error_message_notfound` and then raise a `FileWriteError`.
+        `error_message_notfound` should have curly brackets for formatting stuff.\n
+        If it fails because of `OSError`, it will respond to the HTTP request automatically
+        using `error_message_os` and then raise a `FileWriteError`."""
+        if error_message_os: error_message_os += ' '
+        
+        if create_file is False:
+            if not os.path.exists(file_path):  # UNTESTED
+                self.send_error(500, error_message_notfound.format(error_message_os))
+                raise FileWriteError
+        
+        try:
+            with open(file_path, 'w') as file:
+                json.dump(json_object, file)
+                
+        except OSError:
+            self.send_error(500, f"(Server Error) Could not write to {error_message_os}file.")
+            raise FileWriteError
 
 
     def do_POST_register(self, token:str, username:str):
@@ -193,39 +243,32 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         user_dir = os.path.join(backend_dir, "accounts", username)
         meta_file = os.path.join(user_dir, "meta.json")
 
-        try:
-            with open(meta_file, "r") as file:
-                pass
-
-        except FileNotFoundError:
-            pass
-        else:
+        if os.path.exists(meta_file):
             self.send_error(400, "User already exists.")
             return
         
-        # Success! Create user
-        m = hashlib.sha256()
-        m.update(bytes(password, 'utf-8'))
-        # TODO salting?
-        #m.update(salt)
-        password_hash = m.hexdigest()
+        password_hash = hash_password(password, username)
+        generated_token = generate_token()
+        generated_token_hash = hash_token(generated_token)
         
         meta = {
             "displayname": displayname,
             "accountCreated": int(time.time()),
             "passwordHash": password_hash,
-            "validTokens": [],
+            "validTokens": [generated_token_hash],
+            "deleted": False,
         }
 
         os.makedirs(user_dir)
-        with open(meta_file, "w") as file:
-            json.dump(meta, file, indent=4)
-
+        try:
+            self.write_json_file(meta_file, meta, "user meta", True)
+        except FileWriteError: return
+        
+        # Success! User dir and meta created. Return generated token.
         self.send_response(200)
         self.send_header('Content-Type', "text/json")
         self.end_headers()
-
-        response = {}
+        response = {'generatedToken': generated_token}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
 
@@ -259,35 +302,28 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         meta_file = os.path.join(user_dir, "meta.json")
 
         try:
-            with open(meta_file, "r") as file:
-                meta = json.load(file)
-
-        except FileNotFoundError:
-            self.send_error(404, "User does not exist.")
-            return
+            meta = self.read_json_file(meta_file, "User does not exist.", "user meta")
+        except FileReadError: return
 
         stored_password_hash = meta["passwordHash"]
-        m = hashlib.sha256()
-        m.update(bytes(password, 'utf-8'))
-        password_hash = m.hexdigest()
+        password_hash = hash_password(password, username)
 
         if stored_password_hash != password_hash:
             self.send_error(401, "Incorrect password.")
             return
 
+        generated_token = generate_token()
+        generated_token_hashed = hash_token(token)
+        meta['validTokens'].append(generated_token_hashed)
+        
+        try:
+            self.write_json_file(meta_file, meta, "user meta", False)
+        except FileWriteError: return
+        
         # Success! Return generated token
         self.send_response(200)
         self.send_header('Content-Type', "text/json")
         self.end_headers()
-        
-        generated_token = generate_token()
-        m = hashlib.sha256()
-        m.update(bytes(generated_token, 'utf-8'))
-        generated_token_hashed = m.hexdigest()
-        meta['validTokens'].append(generated_token_hashed)
-        
-        with open(meta_file, 'w') as file:
-            json.dump(meta, file, indent=4)
 
         response = {'generatedToken': generated_token}
         self.wfile.write(bytes(json.dumps(response), "utf8"))
@@ -323,45 +359,28 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         channel_dir = os.path.join(backend_dir, "channels", str(channel_id))
         channel_meta_file = os.path.join(channel_dir, "meta.json")
         
-        print(channel_meta_file)
-        
+        # print(channel_meta_file)
         try:
-            with open(channel_meta_file, 'r') as file:
-                channel_meta = json.load(file)
-                
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read channel meta file.")
-            return
-        
-        except FileNotFoundError:
-            self.send_error(404, "Channel not found.")
-            return
+            channel_meta = self.read_json_file(channel_meta_file, "Channel not found.", "channel meta")
+        except FileReadError: return
         
         
         batch_id = channel_meta['latestMessageBatch']
         channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id)+".json")
         
         try:
-            with open(channel_messages_file, 'r') as file:
-                channel_messages = json.load(file)
-                
-        except FileNotFoundError:
-            self.send_error(404, "Channel messages batch file not found. Could be a permanent server issue lol")
-            return
-    
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read channel messages file.")
-            return
+            channel_messages = self.read_json_file(channel_messages_file, "Messages batch not found.", "messages batch")
+        except FileReadError: return
         
+        created_new_batch = False
         if len(channel_messages) >= MESSAGE_BATCH_SIZE:
+            created_new_batch = True
             batch_id += 1
             channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id)+".json")
             channel_meta['latestMessageBatch'] = batch_id
             try:
-                with open(channel_meta_file, 'w') as file:
-                    json.dump(channel_meta, file, indent=4)
-            except OSError:
-                self.send_error(500, "(Server Error) Could not write to channel meta file.")
+                self.write_json_file(channel_meta_file, channel_meta, "channel meta", False)
+            except FileWriteError: return
             channel_messages = []
         
         message_obj = {
@@ -372,13 +391,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         channel_messages.append(message_obj)
         
         try:
-            with open(channel_messages_file, 'w') as file:
-                json.dump(channel_messages, file, indent=4)
-        except OSError:
-            # i hate handling these retarded errors
-            # it would have to reset the meta file potentially (which could also OSError)
-            self.send_error(500, "(Server Error) Could not write to channel messages file.")
-            return
+            self.write_json_file(channel_messages_file, channel_messages, "messages batch", created_new_batch)
+        except FileWriteError: return
 
         # Success! Append message to latest message batch (or create a new one if necessary)
         #          Also send message to every connected websocket client of that channel
@@ -454,16 +468,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         
         channel_meta_file = os.path.join(channel_dir, "meta.json")
         try:
-            with open(channel_meta_file, 'r') as file:
-                channel_meta = json.load(file)
-                
-        except FileNotFoundError:
-            self.send_error(404, "Channel not found.")
-            return
-        
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read channel meta file.")
-            return
+            channel_meta = self.read_json_file(channel_meta_file, "Channel not found.", "channel meta")
+        except FileReadError: return
         
         if username not in channel_meta['members']:
             self.send_error(403, "You don't have permission to view this channel.")
@@ -482,16 +488,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         channel_meta_file = os.path.join(channel_dir, "meta.json")
         
         try:
-            with open(channel_meta_file, 'r') as file:
-                channel_meta = json.load(file)
-        
-        except FileNotFoundError:
-            self.send_error(404, "Channel not found.")
-            return
-
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read channel meta file.")
-            return
+            channel_meta = self.read_json_file(channel_meta_file, "Channel not found.", "channel meta")
+        except FileReadError: return
                         
         # Success, send channel about
         self.send_response(200)
@@ -512,16 +510,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         channel_messages_file = os.path.join(channel_dir, "message_batches", str(batch_id) + ".json")
         
         try:
-            with open(channel_messages_file, 'r') as file:
-                channel_messages = json.load(file)
-                
-        except FileNotFoundError:
-            self.send_error(404, "Message batch not found.")
-            return
-    
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read channel messages file.")
-            return
+            channel_messages = self.read_json_file(channel_messages_file, "Message batch not found.", "messages batch")
+        except FileReadError: return
         
         
         # Success! Send channel messages
@@ -555,28 +545,20 @@ class HTTPHandler(SimpleHTTPRequestHandler):
     
     def do_GET_users_about(self, target_username: str):
         account_dir = os.path.join(backend_dir, "accounts", target_username)
-        account_meta_file = os.path.join(account_dir, "meta.json")
+        user_meta_file = os.path.join(account_dir, "meta.json")
         
         try:
-            with open(account_meta_file, 'r') as file:
-                account_meta_private = json.load(file)
-                
-        except FileNotFoundError:
-            self.send_error(404, "User does not exist.")
-            return
-        
-        except OSError:
-            self.send_error(500, "(Server Error)  Could not read user meta file.")
-            return
+            user_meta_private = self.read_json_file(user_meta_file, "User not found.", "user meta")
+        except FileReadError: return
         
         # Success! Send filtered account meta
-        keys_filter = ['displayname', 'accountCreated']
-        account_meta_public = {key:value for key,value in account_meta_private.items() if key in keys_filter}
+        keys_filter = ['displayname', 'accountCreated', 'deleted']
+        user_meta_public = {key:value for key,value in user_meta_private.items() if key in keys_filter}
         
         self.send_response(200)
         self.send_header("Content-Type", "text/json")
         self.end_headers()
-        self.wfile.write(bytes(json.dumps(account_meta_public), 'utf-8'))
+        self.wfile.write(bytes(json.dumps(user_meta_public), 'utf-8'))
     
     
     def do_GET_self_channels(self, token:str, username:str):
@@ -585,16 +567,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         
         user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
         try:
-            with open(user_meta_file, 'r') as file:
-                user_meta = json.load(file)
-        
-        except FileNotFoundError:
-            self.send_error(401, "There is no user associated with this username.")
-            return
-    
-        except OSError:
-            self.send_error(500, "(Server Error) Could not read user meta file.")
-            return
+            user_meta = self.read_json_file(user_meta_file, "There is no user associated with this username.", "user meta")
+        except FileReadError: return
         
         channel_names: dict[int, str] = {}
         

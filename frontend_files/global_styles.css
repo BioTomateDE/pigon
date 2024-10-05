@@ -1,8 +1,8 @@
 :root {
-    --main-color: #282929;
+    --primary-color: #282929;
     --secondary-color: #3b3b3d;
     --tenary-color: #1b1b1b;
-    --main-text-color: #eceae4;
+    --primary-text-color: #eceae4;
     --secondary-text-color: #b4b2ad;
     --tenary-text-color: #807e79;
 }
@@ -13,8 +13,8 @@ body {
     padding: 1em 1em 1em 1em;
 
     font-family: sans-serif;
-    background-color: var(--main-color);
-    color: var(--main-text-color);
+    background-color: var(--primary-color);
+    color: var(--primary-text-color);
     /* font-size: 1.05em; */
 }
 
@@ -28,7 +28,7 @@ input[type=password] {
 
     background-color: var(--secondary-color);
     border: none;
-    color: var(--main-text-color);
+    color: var(--primary-text-color);
 }
 
 
@@ -42,12 +42,13 @@ input[type=submit] {
 
     background-color: var(--secondary-color);
     border: none;
-    color: var(--main-text-color);
+    color: var(--primary-text-color);
 
 }
 
 a {
     color: rgb(45, 209, 45);
+    text-decoration: none;
 }
 
 a:visited {
@@ -55,8 +56,15 @@ a:visited {
 }
 
 a:hover {
-    color: rgb(40, 182, 40);
+    /* color: rgb(40, 182, 40); */
+    text-decoration: underline;
 }
+
+.unstyled-link, .unstyled-link:hover, .unstyled-link:visited {
+    color: var(--primary-text-color);
+    text-decoration: none;
+}
+
 
 
 code {
@@ -72,4 +80,14 @@ code {
 
 .dangerous:hover {
     color: rgb(172, 26, 21);
+}
+
+.divider {
+    margin: .6em .0em .6em .0em;
+    border-bottom: 1px solid var(--tenary-text-color);
+}
+
+.divider-small {
+    margin: .3em 2.1em .3em 2.1em;
+    border-bottom: 1px solid var(--secondary-color);
 }

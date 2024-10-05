@@ -302,6 +302,7 @@ function logout() {
     window.location.replace("/login.html");
 }
 
+
 function logoutAll() {
     if (!confirm("Log out of all other devices?")) return;
 
@@ -334,6 +335,51 @@ function deleteAccount() {
 }
 
 
+function loadSelfChannels() {
+    var xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState != 4) return;
+
+        if (xhr.status == 200) {
+            response = JSON.parse(xhr.responseText);
+            console.log("Response to /get_self_channels:", response);
+
+            // put in sidebar
+            let sidebarChannels = document.querySelector("#sidebar-channels");
+            for (const [channelID, channelName] of Object.entries(response)) {
+                let nodeDiv = document.createElement("div");
+                nodeDiv.classList.add("sidebar-channel");
+
+                let nodeLink = document.createElement("a");
+                nodeLink.classList.add("unstyled-link");
+                nodeLink.href = `/channels/${channelID}/`;
+
+                let nodeName = document.createElement("p");
+                nodeName.classList.add("sidebar-channel-name");
+                nodeName.innerText = channelName;
+
+                let nodeDivider = document.createElement("span");
+                nodeDivider.classList.add("divider-small");
+                
+                nodeLink.appendChild(nodeName);
+                nodeDiv.appendChild(nodeLink);
+                sidebarChannels.appendChild(nodeDiv);
+                sidebarChannels.appendChild(nodeDivider);
+            }
+        }
+
+        else {
+            console.warn(`Error to /get_self_channels: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /get_self_channels:", response['error']);
+        }
+    }
+
+    xhr.open("GET", "/get_self_channels", true);
+    xhr.send(null);
+}
+
 
 var channelAbout = null;
 var accountMetaCache = {};
@@ -343,8 +389,9 @@ var selfDisplayname = null;
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");
     loadChannelAbout();
-    console.log("Channel about loaded. Loading self username.");
+    console.log("Channel about loaded. Loading self displayname and channels.");
     loadAccountMeta(selfUsername);
-    // console.log("Self username loaded. Connecting WebSocket.");
+    loadSelfChannels();
+    // console.log("Self displayname loaded. Connecting WebSocket.");
     connectWebSocket();
 }
