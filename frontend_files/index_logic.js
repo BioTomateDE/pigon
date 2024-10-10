@@ -114,7 +114,7 @@ function insertSelfDisplayname(displayname) {
 
 
 function appendMessage(message, unconfirmed = false, useTempID = false, displayname, hideHeader = false) {
-    let messagesDiv = document.getElementById("messages");
+    let msgDiv = document.getElementById("messages");
     let nodeDiv = document.createElement("div");
     nodeDiv.classList.add("message");
     if (unconfirmed) {
@@ -159,10 +159,10 @@ function appendMessage(message, unconfirmed = false, useTempID = false, displayn
     nodeText.classList.add("message-text");
     nodeDiv.appendChild(nodeText);
 
-    messagesDiv.appendChild(nodeDiv);
+    msgDiv.insertBefore(nodeDiv, msgDiv.firstChild);
 
-    if (messagesDiv.scrollTop > -100) {
-        messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+    if (msgDiv.scrollHeight - msgDiv.clientHeight - msgDiv.scrollTop > 100) {
+        msgDiv.scrollTo(0, msgDiv.scrollHeight);
     }
     initializeScroller();
 }
@@ -414,6 +414,16 @@ function scrollerListener() {
     var scrollbar = document.querySelector("#messages-wrapper .scrollbar");
     var scroller = scrollbar.querySelector(".scrollbar-scroller");
 
+    var messageLoader = _.throttle(() => {
+        if (currentBatchID < 1) return;
+        console.log("Checking if messages need to be loaded");
+
+        if (scroller.offsetTop / scrollbar.clientHeight < 0.5) {
+            loadMessages(currentBatchID);
+            currentBatchID--;
+        }
+    }, 200);
+
     var mousemoveCallback = (event2) => {
         const scrollbarHeight = scrollbar.clientHeight;
         const scrollerHeight = scroller.clientHeight;
@@ -426,9 +436,10 @@ function scrollerListener() {
 
         scroller.style['top'] = scrollerTop + 'px';
         let ratio = scrollerTop / (scrollbarHeight - scrollerHeight);
-        let msgScrollTop = (1 - ratio) * (msgHeightTotal - msgHeightVisible);
+        let msgScrollTop = ratio * (msgHeightTotal - msgHeightVisible);
 
-        msgDiv.scrollTo({ top: -msgScrollTop })
+        msgDiv.scrollTo({ top: msgScrollTop });
+        messageLoader();
     };
 
     scroller.addEventListener("mousedown", (event) => {
@@ -455,13 +466,14 @@ function scrollerListener() {
         const scrollerHeight = scroller.clientHeight;
         const msgHeightTotal = msgDiv.scrollHeight;
         const msgHeightVisible = msgDivWrapper.clientHeight;
-        const msgScrollTop = -msgDiv.scrollTop;
+        const msgScrollTop = msgDiv.scrollTop;
 
         let ratio = msgScrollTop / (msgHeightTotal - msgHeightVisible);
-        let scrollerTop = (1 - ratio) * (scrollbarHeight - scrollerHeight);
+        let scrollerTop = ratio * (scrollbarHeight - scrollerHeight);
 
         scroller.style['top'] = scrollerTop + "px";
-    }, 10));    // lower this value for more updates --> smoother but more performance heavy
+        messageLoader();
+    }, 30));    // lower this value for more updates --> smoother but more performance heavy
 }
 
 
@@ -496,7 +508,6 @@ window.onload = (event) => {
     loadSelfChannels();
     // console.log("Self displayname loaded. Connecting WebSocket.");
     connectWebSocket();
-    messagesAutoLoader();
     initializeScroller();
     scrollerListener();
 }

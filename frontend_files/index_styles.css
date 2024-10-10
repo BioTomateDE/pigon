@@ -35,26 +35,11 @@ body {
     /* overflow: auto; */
 }
 
-
 #sendbar {
     display: flex;
     flex-direction: row;
 }
 
-#messages-wrapper {
-    position: relative;
-    display: flex;
-
-    border-radius: 3em;
-    /* border-color: var(--secondary-color); */
-    /* border-color: transparent;
-    border-style: solid;
-    border-width: 4px; */
-    height: 40em;
-    scrollbar-width: none;
-    
-    margin: 0em 0em 0.8em 0em;
-}
 
 .scrollbar {
     position: relative;
@@ -71,16 +56,30 @@ body {
     width: 0.6em;
     border-radius: 20em;
     margin: auto;
-    /* margin-left: 0.2em; */
 
     cursor: ns-resize;
 }
 
 
+#messages-wrapper {
+    position: relative;
+    display: flex;
+
+    border-radius: 3em;
+    /* border-color: var(--secondary-color); */
+    /* border-color: transparent;
+    border-style: solid;
+    border-width: 4px; */
+    height: 50em;
+    scrollbar-width: none;
+    
+    margin: 0em 0em 0.8em 0em;
+}
+
+
 #messages {
     display: flex;
-    flex-direction: column-reverse;
-    /* justify-content breaks the scrolling! use margin-top:auto on last child instead */
+    flex-direction: column;
 
     position: relative;
     background-color: var(--primary-color);
@@ -88,12 +87,7 @@ body {
     padding: 1em 1em 1em 1em;
     overflow-y: auto;
     scrollbar-width: none;
-    /* overflow-wrap: break-word; */
-}
-
-
-.message:last-child {
-    margin-top: auto;
+    overflow-wrap: break-word;
 }
 
 
@@ -101,13 +95,11 @@ body {
     flex: 1;
 }
 
-
 .message-author {
     font-weight: bold;
     margin-right: 0.6em;
     font-size: 1.1em;
 }
-
 
 .message-timestamp {
     color: var(--tenary-text-color);
@@ -117,35 +109,17 @@ body {
 .message-text {
     position: relative;
     text-wrap: wrap;
-    /* white-space: normal; */
-
-    /* TODO fix this piece of shit god i hate css */
-    /* and i fucking hate css comments just give me // you bastard these multiline comments make me wanna kms */
-    /* padding: 0.2em 0em 1.2em 0em; */
 }
 
-
 .message {
-    /* margin-top: 0.5em; */
     margin-bottom: 1em;
-    
     word-wrap: break-all;
     overflow-wrap: break-all;
-    /* white-space: normal; */
 }
 
 .message-unconfirmed {
     color: var(--secondary-text-color);
 }
-
-/* .message-unconfirmed.message-text {
-    color: var(--secondary-text-color);
-}
-
-.message-unconfirmed.message-author {
-    color: var(--secondary-text-color);
-} */
-
 
 .message-tempid {
     display: none;
