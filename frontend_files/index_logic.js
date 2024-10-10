@@ -404,17 +404,10 @@ function messagesAutoLoader() {
 }
 
 
-function pauseEvent(e) {
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.preventDefault) e.preventDefault();
-    e.cancelBubble = true;
-    e.returnValue = false;
-    return false;
-}
-
 function scrollerListener() {
     var initialPointerY = null;
     var initialScrollerTop = null;
+    var usingScrollbar = false;
 
     var msgDivWrapper = document.querySelector("#messages-wrapper");
     var msgDiv = document.querySelector("#messages");
@@ -433,26 +426,42 @@ function scrollerListener() {
 
         scroller.style['top'] = scrollerTop + 'px';
         let ratio = scrollerTop / (scrollbarHeight - scrollerHeight);
-        let messagesScrollHeight = (1 - ratio) * (msgHeightTotal - msgHeightVisible);
+        let msgScrollTop = (1 - ratio) * (msgHeightTotal - msgHeightVisible);
 
-        messages.scrollTo({top: -messagesScrollHeight})
-        // console.log(scrollbarHeight, scrollerHeight, scrollerTop, msgHeightTotal, msgHeightVisible, ratio);
+        msgDiv.scrollTo({ top: -msgScrollTop })
     };
-    
+
     scroller.addEventListener("mousedown", (event) => {
-        console.log(event);
         initialPointerY = event.y;
         initialScrollerTop = scroller.offsetTop;
-        // document.querySelector("body").classList.add("unselectable");
+        usingScrollbar = true;
         document.addEventListener("mousemove", mousemoveCallback);
-        pauseEvent(event);
+        event.preventDefault();    // Prevents selecting while scrolling
     });
 
     document.addEventListener("mouseup", (event) => {
-        // document.querySelector("body").classList.remove("unselectable");
         document.removeEventListener("mousemove", mousemoveCallback);
-        pauseEvent(event);
+        initialPointerY = null;
+        initialScrollerTop = null;
+        usingScrollbar = false;
+        // _.throttle(() => { console.log(usingScrollbar); usingScrollbar = false; }, 10);
+        event.preventDefault();    // Prevents selecting while scrolling
     });
+
+    msgDiv.addEventListener('scroll', _.throttle((event) => {
+        if (usingScrollbar) return;
+
+        const scrollbarHeight = scrollbar.clientHeight;
+        const scrollerHeight = scroller.clientHeight;
+        const msgHeightTotal = msgDiv.scrollHeight;
+        const msgHeightVisible = msgDivWrapper.clientHeight;
+        const msgScrollTop = -msgDiv.scrollTop;
+
+        let ratio = msgScrollTop / (msgHeightTotal - msgHeightVisible);
+        let scrollerTop = (1 - ratio) * (scrollbarHeight - scrollerHeight);
+
+        scroller.style['top'] = scrollerTop + "px";
+    }, 10));    // lower this value for more updates --> smoother but more performance heavy
 }
 
 
@@ -465,11 +474,10 @@ function initializeScroller() {
     let msgHeightVisible = msgDivWrapper.clientHeight;
     let msgHeightTotal = msgDiv.scrollHeight;
     const scrollbarHeight = scrollbarDiv.clientHeight;
-    let scrollerHeight = Math.floor(msgHeightVisible / msgHeightTotal * scrollbarHeight);
+    let scrollerHeight = msgHeightVisible / msgHeightTotal * scrollbarHeight;
 
     scroller.style['height'] = scrollerHeight + 'px';
     scroller.style['top'] = (scrollbarHeight - scrollerHeight) + 'px';
-    // console.log(msgHeightVisible, msgHeightTotal, scrollbarHeight, scrollerHeight);
 }
 
 

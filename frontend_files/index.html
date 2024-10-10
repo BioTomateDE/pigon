@@ -1,58 +1,64 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <title>Pigon Messenger</title>
-        <meta name="description" content="">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="/global_styles.css">
-        <link rel="stylesheet" href="/index_styles.css">
-    </head>
-    <body>
-        <h1>Pigon Messenger</h1>
 
-        <div id="flex-container">
-            <div id="sidebar">
-                <div id="sidebar-loginfo">
-                    <span>
-                        You're logged in as <strong id="sidebar-loginfo-displayname">Unknown User</strong>.
-                    </span>
-                </div>
-                <br>
-                <a href="javascript:logout()">Log out</a>
-                <a href="javascript:logoutAll()" class="dangerous">Log out of all other devices</a>
-                <a href="javascript:deleteAccount()" class="dangerous">Delete account</a>
-                <span class="divider"></span>
-                <a href="javascript:createChannel()">Create channel</a>
-                <br>
-                <div id="sidebar-channels"></div>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Pigon Messenger</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/global_styles.css">
+    <link rel="stylesheet" href="/index_styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"
+        integrity="sha256-qXBd/EfAdjOA2FGrGAG+b3YBn2tn5A6bhz+LSgYD96k=" crossorigin="anonymous"></script>
+
+</head>
+
+<body>
+    <h1>Pigon Messenger</h1>
+
+    <div id="flex-container">
+        <div id="sidebar">
+            <div id="sidebar-loginfo">
+                <span>
+                    You're logged in as <strong id="sidebar-loginfo-displayname">Unknown User</strong>.
+                </span>
+            </div>
+            <br>
+            <a href="javascript:logout()">Log out</a>
+            <a href="javascript:logoutAll()" class="dangerous">Log out of all other devices</a>
+            <a href="javascript:deleteAccount()" class="dangerous">Delete account</a>
+            <span class="divider"></span>
+            <a href="javascript:createChannel()">Create channel</a>
+            <br>
+            <div id="sidebar-channels"></div>
+        </div>
+
+        <div id="page">
+            <div id="channel-header">
+                <h2 id="channel-header-name">Channel Name</h2>
+                <p id="channel-header-members">Member 1, Member 2, Member 3</p>
             </div>
 
-            <div id="page">
-                <div id="channel-header">
-                    <h2 id="channel-header-name">Channel Name</h2>
-                    <p id="channel-header-members">Member 1, Member 2, Member 3</p>
+            <div id="messages-wrapper">
+                <div id="messages"></div>
+                <div class="scrollbar">
+                    <div class="scrollbar-scroller"></div>
                 </div>
-                
-                <div id="messages-wrapper">
-                    <div id="messages"></div>
-                    <div class="scrollbar">
-                        <div class="scrollbar-scroller"></div>
-                    </div>
-                </div>
+            </div>
 
-                <div id="sendbar">
-                    <input type="text" name="send-message-text" id="send-message-text">
-                    <button id="send-message-confirm" onclick="sendMessage();">Send</button>
-                </div>
+            <div id="sendbar">
+                <input type="text" name="send-message-text" id="send-message-text">
+                <button id="send-message-confirm" onclick="sendMessage();">Send</button>
+            </div>
         </div>
 
-        </div>
+    </div>
 
-        <script src="/global_logic.js" async defer></script>
-        <script src="/index_logic.js" async defer></script>
+    <script src="/global_logic.js" async defer></script>
+    <script src="/index_logic.js" async defer></script>
 
-        <!-- <footer>Credit Favicon: Nueng_wana</footer> -->
-    </body>
+    <!-- <footer>Credit Favicon: Nueng_wana</footer> -->
+</body>
+
 </html>
