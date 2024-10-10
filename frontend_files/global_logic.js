@@ -111,7 +111,7 @@ function textParser(text) {
     let codeBlockOpenIndex = -1;
     let italicUnderOpenIndex = -1;
     let underlineOpenIndex = -1;
-    
+
     // console.warn(text)
 
     while (i < text.length) {
@@ -127,7 +127,7 @@ function textParser(text) {
                     escapingNow = escaping;
                     i += 1;
                 }
-                else if (i+1 < text.length && text[i+1] == '`') {
+                else if (i + 1 < text.length && text[i + 1] == '`') {
                     tokens.push('`');
                     i += 2;
                 }
@@ -226,7 +226,7 @@ function textParser(text) {
                     i += 1;
                 }
                 break;
-            
+
 
             case '`':
                 if (escaping) {
@@ -244,7 +244,7 @@ function textParser(text) {
                     codeOpenIndex = -1;
                     i += 1;
                 }
-                else if (codeBlockOpenIndex != -1 && i+1 < text.length && text[i+1] == '`') {
+                else if (codeBlockOpenIndex != -1 && i + 1 < text.length && text[i + 1] == '`') {
                     if (codeBlockOpenIndex == tokens.length - 1) {
                         tokens[codeBlockOpenIndex] = '``';
                         tokens.push('``');
@@ -255,7 +255,7 @@ function textParser(text) {
                     codeBlockOpenIndex = -1;
                     i += 2;
                 }
-                else if (i+1 < text.length && text[i+1] == '`') {
+                else if (i + 1 < text.length && text[i + 1] == '`') {
                     tokens.push('<pre><code>');
                     codeBlockOpenIndex = tokens.length - 1;
                     i += 2;
@@ -309,3 +309,50 @@ function clamp(minimum, number, maxiumum) {
         number = maxiumum;
     return number;
 }
+
+
+async function generateKeyPair() {
+    let keyPair = await window.crypto.subtle.generateKey(
+        keyGenOptions,
+        true,
+        ["encrypt", "decrypt"],
+    );
+    return keyPair;
+}
+
+async function storePrivateKey(privateKey) {
+    if (localStorage.getItem("privateKey") != null) {
+        throw new Error("There is already a private key stored in localstorage!");
+    }
+
+    let jwk = await crypto.subtle.exportKey("jwk", privateKey);
+    let string = JSON.stringify(jwk);
+    localStorage.setItem("privateKey", string);
+}
+
+async function retrievePrivateKey() {
+    let string = localStorage.getItem("privateKey");
+
+    if (string == null) {
+        throw new Error("There is no private key stored in localstorage!");
+    }
+
+    let jwk = JSON.parse(string);
+    let privateKey = await crypto.subtle.importKey(
+        "jwk",
+        jwk,
+        keyGenOptions,
+        true,
+        ["encrypt", "decrypt"]
+    );
+    return privateKey;
+}
+
+
+const keyGenOptions = {
+    name: "RSA-OAEP",
+    modulusLength: 4096,
+    publicExponent: new Uint8Array([1, 0, 1]),
+    hash: "SHA-256",
+};
+

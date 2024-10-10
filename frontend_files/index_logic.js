@@ -493,12 +493,14 @@ function initializeScroller() {
 }
 
 
+// variables and stuff
 var channelAbout = null;
 var currentBatchID = null;
 var accountMetaCache = {};
 var selfUsername = getCookie("username");
 var selfDisplayname = null;
 var loadingMessages = true;
+
 
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");

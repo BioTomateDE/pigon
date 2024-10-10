@@ -1,5 +1,4 @@
 from base64 import b64encode
-import datetime
 from http.server import HTTPServer as BaseHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 import os
@@ -9,9 +8,9 @@ import threading
 import time
 import hashlib
 from urllib.parse import urlparse
-import uuid
 import asyncio
-from websockets import ConnectionClosed, WebSocketServerProtocol
+from websockets import ConnectionClosed as WSConnectionClosed
+from websockets import WebSocketServerProtocol
 from websockets.server import serve as ws_serve
 
 
@@ -126,7 +125,7 @@ async def ws_client_connect(sock: WebSocketServerProtocol):
             
             # await sock.send("ok")  # TODO placeholder
         
-    except ConnectionClosed:
+    except WSConnectionClosed:
         print("Client disconnected:", sock.id)
 
 
@@ -226,8 +225,9 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             username = post_data["username"]
             displayname = post_data["displayname"]
             password = post_data["password"]
+            public_key = post_data["publicKey"]
         except KeyError:
-            self.send_error(400, "JSON object needs to have attributes: 'username', 'displayname', 'password'.")
+            self.send_error(400, "JSON object needs to have attributes: 'username', 'displayname', 'password', 'publicKey'.")
             return
 
         if not validate_username(username):
@@ -238,8 +238,12 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(400, "Display Name should have a length between 1 and 48 characters.")
             return
 
-        if not (1 <= len(password) <= 128):  # TODO maybe only (certain) ascii chars?
+        if not (1 <= len(password) <= 128):  # TODO maybe only allow (certain?) ascii chars?
             self.send_error(400, "Password should have a length between 1 and 128 characters.")
+            return
+
+        if not all(i in public_key for i in {"alg", "e", "ext", "key_ops", "kty", "n"}):
+            self.send_error(400, "Public key should be in JWK format.")
             return
 
         user_dir = os.path.join(backend_dir, "accounts", username)
@@ -259,6 +263,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             "passwordHash": password_hash,
             "validTokens": [generated_token_hash],
             "deleted": False,
+            "publicKey": public_key,
+            "channels": [1]  # TODO remove bc temporary (or keep as global chat lol)
         }
 
         os.makedirs(user_dir)
@@ -414,7 +420,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 
                 try:
                     asyncio.run(client.sock.send(response_ws))
-                except ConnectionClosed:
+                except WSConnectionClosed:
                     print(f"WS Connection to {client.username} was closed!")
                 # print("DEBUG after send")
 
@@ -465,7 +471,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         
         if not sub:
             self.path = "/index.html"
-            super().do_GET()
+            try:
+                super().do_GET()
+            except ConnectionAbortedError:
+                print("Connection was aborted while trying to super().do_GET()")
             return
         
         channel_meta_file = os.path.join(channel_dir, "meta.json")
@@ -554,7 +563,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except FileReadError: return
         
         # Success! Send filtered account meta
-        keys_filter = ['displayname', 'accountCreated', 'deleted']
+        keys_filter = ['displayname', 'accountCreated', 'deleted', 'publicKey']
         user_meta_public = {key:value for key,value in user_meta_private.items() if key in keys_filter}
         
         self.send_response(200)
@@ -634,7 +643,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.do_GET_self_channels(token, username)
             return
 
-        super().do_GET()
+        try:
+            super().do_GET()
+        except ConnectionAbortedError:
+            print("Connection was aborted while trying to super().do_GET()")
     
     
     def validate_auth(self, token:str, username:str) -> bool:
