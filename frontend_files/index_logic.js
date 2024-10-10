@@ -113,69 +113,46 @@ function insertSelfDisplayname(displayname) {
 }
 
 
-
-function textFormatting(text) {
-    // TODO what the hell is going on in the regex
-    text = escapeHTML(text);
-
-    // https://stackoverflow.com/questions/11819059/regex-match-character-which-is-not-escaped
-
-    const reCodeBlock = /``([^\s]+?)``/g;
-    const reCode = /`([^\s]+?)`/g;
-    const reBold = /(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*(?<!\\)(?:\\\\)*\*/g;
-    const reItalic = /(?<!\\)(?:\\\\)*\*([^\s]+?)(?<!\\)(?:\\\\)*\*/g;
-    const reUnderlined = /(?<!\\)(?:\\\\)*_([^\s]+?)(?<!\\)(?:\\\\)*_/g;
-    const reEscaping = /\\([\*_`])/g;
-    const reDoubleBackslashes = /\\\\/g;
-    // TODO spoilers
-
-    text = text.replaceAll(reCodeBlock, `<pre><code>$1</code></pre>`)
-        .replaceAll(reCode, "<code>$1</code>")
-        .replaceAll(reBold, "<strong>$1</strong>")
-        .replaceAll(reItalic, "<em>$1</em>")
-        .replaceAll(reUnderlined, "<u>$1</u>")
-        .replaceAll(reEscaping, "$1")
-        .replaceAll(reDoubleBackslashes, "\\")
-
-    return text;
-}
-
-
-function appendMessage(message, unconfirmed = false, useTempID = false, displayname) {
+function appendMessage(message, unconfirmed = false, useTempID = false, displayname, hideHeader = false) {
     let messagesDiv = document.getElementById("messages");
     let nodeDiv = document.createElement("div");
     nodeDiv.classList.add("message");
     if (unconfirmed) {
         nodeDiv.classList.add("message-unconfirmed");
     }
-
-    let nodeAuthor = document.createElement("span");
-    if (typeof displayname === "undefined") {
-        nodeAuthor.innerText = message['author'];
-        nodeAuthor.classList.add("message-author-placeholder");
-    }
-    else {
-        nodeAuthor.innerText = displayname;
-    }
-    nodeAuthor.classList.add("message-author");
-    nodeDiv.appendChild(nodeAuthor);
-
-    let nodeTimestamp = document.createElement("span");
-    let date = new Date(message['timestamp'] * 1000);
-    let dateFormatted = formatDate(date);
-    nodeTimestamp.innerText = dateFormatted;
-    nodeTimestamp.classList.add("message-timestamp");
-    nodeDiv.appendChild(nodeTimestamp);
-
-    if (useTempID && typeof message['tempID'] !== "undefined") {
-        let nodeTempID = document.createElement("span");
-        nodeTempID.innerText = message['tempID'];
-        nodeTempID.classList.add("message-tempid");
-        nodeDiv.appendChild(nodeTempID);
+    if (hideHeader) {
+        nodeDiv.classList.add("message-hideheader");
     }
 
-    let nodeBr = document.createElement("br");
-    nodeDiv.appendChild(nodeBr);
+    if (!hideHeader) {
+        let nodeAuthor = document.createElement("span");
+        if (typeof displayname === "undefined") {
+            nodeAuthor.innerText = message['author'];
+            nodeAuthor.classList.add("message-author-placeholder");
+        }
+        else {
+            nodeAuthor.innerText = displayname;
+        }
+        nodeAuthor.classList.add("message-author");
+        nodeDiv.appendChild(nodeAuthor);
+
+        let nodeTimestamp = document.createElement("span");
+        let date = new Date(message['timestamp'] * 1000);
+        let dateFormatted = formatDate(date);
+        nodeTimestamp.innerText = dateFormatted;
+        nodeTimestamp.classList.add("message-timestamp");
+        nodeDiv.appendChild(nodeTimestamp);
+
+        if (useTempID && typeof message['tempID'] !== "undefined") {
+            let nodeTempID = document.createElement("span");
+            nodeTempID.innerText = message['tempID'];
+            nodeTempID.classList.add("message-tempid");
+            nodeDiv.appendChild(nodeTempID);
+        }
+
+        let nodeBr = document.createElement("br");
+        nodeDiv.appendChild(nodeBr);
+    }
 
     let nodeText = document.createElement("span");
     nodeText.innerHTML = textParser(message['text']);
@@ -184,21 +161,32 @@ function appendMessage(message, unconfirmed = false, useTempID = false, displayn
 
     messagesDiv.appendChild(nodeDiv);
 
-    messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+    if (messagesDiv.scrollTop > -100) {
+        messagesDiv.scrollTo(0, messagesDiv.scrollHeight);
+    }
+    initializeScroller();
 }
 
 
 function loadMessages(batchID) {
+    loadingMessages = true;
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             let messages = JSON.parse(xhr.responseText);
-
-            messages.forEach(message => {
-                appendMessage(message);
+            for (let i = messages.length - 1; i >= 0; i--) {
+                let message = messages[i];
+                if (i > 0 && messages[i - 1]['author'] == message['author'] && message['timestamp'] - messages[i - 1]['timestamp'] < 420) {
+                    // fml
+                    appendMessage(message, false, false, undefined, true);
+                }
+                else {
+                    appendMessage(message, false, false, undefined, false);
+                }
                 loadAccountMeta(message['author']);
-            });
+            }
+            loadingMessages = false;
         }
 
         else if (xhr.readyState == 4) {
@@ -220,6 +208,7 @@ function loadChannelAbout() {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             channelAbout = JSON.parse(xhr.responseText);
+            currentBatchID = channelAbout['latestMessageBatch'];
             let channelHeaderDiv = document.querySelector("#channel-header");
             let channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
             let channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
@@ -228,7 +217,8 @@ function loadChannelAbout() {
 
             console.log("Channel about:", channelAbout);
             console.log("Got channel about. Loading messages.");
-            loadMessages(channelAbout['latestMessageBatch']);
+            loadMessages(currentBatchID);
+            currentBatchID--;
         }
 
         else if (xhr.readyState == 4) {
@@ -255,22 +245,27 @@ function connectWebSocket() {
     const sock = new WebSocket(`ws://${window.location.hostname}:8982`);
 
     sock.onopen = (event) => {
-        console.log("WebSocket opened. Sent token and username.");
+        console.log("[WS] Connection opened. Sent token and username.");
         sock.send(`${token} ${username} ${channelID}`);
     };
 
-    sock.onerror = (event) => {
-        console.warn("WebSocket connection closed with error:", event);
-    };
+    // sock.onerror = (event) => {
+    //     console.warn("[WS] Connection closed with error:", event);
+    // };
 
     sock.onclose = (event) => {
-        console.warn("WebSocket connection closed by server:", event);
+        console.warn("[WS] Connection closed:", event);
         setTimeout(connectWebSocket, 1000);
     }
 
     sock.onmessage = (event) => {
         let response = JSON.parse(event.data);
-        console.log("Received message from WebSocket:", response);
+        if (response['error']) {
+            console.warn("[WS] Received error:", response['error']);
+            return;
+        }
+
+        console.log("[WS] Received message:", response);
         appendMessage(response, false, false);
         loadAccountMeta(response['author']);
         let tempID = response['tempID'];
@@ -361,7 +356,7 @@ function loadSelfChannels() {
 
                 let nodeDivider = document.createElement("span");
                 nodeDivider.classList.add("divider-small");
-                
+
                 nodeLink.appendChild(nodeName);
                 nodeDiv.appendChild(nodeLink);
                 sidebarChannels.appendChild(nodeDiv);
@@ -380,11 +375,110 @@ function loadSelfChannels() {
     xhr.send(null);
 }
 
+function messagesAutoLoader() {
+    if (loadingMessages) {
+        setTimeout(messagesAutoLoader, 300);
+        return;
+    }
+
+    var messagesDiv = document.querySelector("#messages");
+    // if (messagesDiv.children.length == 0) {
+    //     setTimeout(messagesAutoLoader, )
+    // }
+
+    var oldestMessage = messagesDiv.children[messagesDiv.children.length - 1];
+
+    let rectElem = oldestMessage.getBoundingClientRect();
+    let rectContainer = messagesDiv.getBoundingClientRect();
+
+    if (rectElem.top - 1 > rectContainer.top) {
+        setTimeout(messagesAutoLoader, 300);
+        return;
+    }
+
+    loadMessages(currentBatchID);
+    currentBatchID--;
+    if (currentBatchID > 0) {
+        setTimeout(messagesAutoLoader, 300);
+    }
+}
+
+
+function pauseEvent(e) {
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+    e.cancelBubble = true;
+    e.returnValue = false;
+    return false;
+}
+
+function scrollerListener() {
+    var initialPointerY = null;
+    var initialScrollerTop = null;
+
+    var msgDivWrapper = document.querySelector("#messages-wrapper");
+    var msgDiv = document.querySelector("#messages");
+    var scrollbar = document.querySelector("#messages-wrapper .scrollbar");
+    var scroller = scrollbar.querySelector(".scrollbar-scroller");
+
+    var mousemoveCallback = (event2) => {
+        const scrollbarHeight = scrollbar.clientHeight;
+        const scrollerHeight = scroller.clientHeight;
+        const msgHeightTotal = msgDiv.scrollHeight;
+        const msgHeightVisible = msgDivWrapper.clientHeight;
+
+        let mouseYOffset = event2.y - initialPointerY;
+        let scrollerTopRaw = initialScrollerTop + mouseYOffset;
+        let scrollerTop = clamp(0, scrollerTopRaw, scrollbarHeight - scrollerHeight);
+
+        scroller.style['top'] = scrollerTop + 'px';
+        let ratio = scrollerTop / (scrollbarHeight - scrollerHeight);
+        let messagesScrollHeight = (1 - ratio) * (msgHeightTotal - msgHeightVisible);
+
+        messages.scrollTo({top: -messagesScrollHeight})
+        // console.log(scrollbarHeight, scrollerHeight, scrollerTop, msgHeightTotal, msgHeightVisible, ratio);
+    };
+    
+    scroller.addEventListener("mousedown", (event) => {
+        console.log(event);
+        initialPointerY = event.y;
+        initialScrollerTop = scroller.offsetTop;
+        // document.querySelector("body").classList.add("unselectable");
+        document.addEventListener("mousemove", mousemoveCallback);
+        pauseEvent(event);
+    });
+
+    document.addEventListener("mouseup", (event) => {
+        // document.querySelector("body").classList.remove("unselectable");
+        document.removeEventListener("mousemove", mousemoveCallback);
+        pauseEvent(event);
+    });
+}
+
+
+function initializeScroller() {
+    const msgDivWrapper = document.querySelector("#messages-wrapper");
+    const msgDiv = document.querySelector("#messages");
+    const scrollbarDiv = document.querySelector("#messages-wrapper .scrollbar");
+    const scroller = scrollbarDiv.querySelector(".scrollbar-scroller");
+
+    let msgHeightVisible = msgDivWrapper.clientHeight;
+    let msgHeightTotal = msgDiv.scrollHeight;
+    const scrollbarHeight = scrollbarDiv.clientHeight;
+    let scrollerHeight = Math.floor(msgHeightVisible / msgHeightTotal * scrollbarHeight);
+
+    scroller.style['height'] = scrollerHeight + 'px';
+    scroller.style['top'] = (scrollbarHeight - scrollerHeight) + 'px';
+    // console.log(msgHeightVisible, msgHeightTotal, scrollbarHeight, scrollerHeight);
+}
+
 
 var channelAbout = null;
+var currentBatchID = null;
 var accountMetaCache = {};
 var selfUsername = getCookie("username");
 var selfDisplayname = null;
+var loadingMessages = true;
 
 window.onload = (event) => {
     console.log("Document is loaded. Loading channel about.");
@@ -394,4 +488,7 @@ window.onload = (event) => {
     loadSelfChannels();
     // console.log("Self displayname loaded. Connecting WebSocket.");
     connectWebSocket();
+    messagesAutoLoader();
+    initializeScroller();
+    scrollerListener();
 }

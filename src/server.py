@@ -42,6 +42,7 @@ def hash_password(password:str, username:str) -> str:
     salt2 = bytes(username[::-1], 'utf-8')
     m.update(salt2)
     password_hash = m.hexdigest()
+    print(password_hash)
     return password_hash
 
 
@@ -70,24 +71,25 @@ class WSConnectedClient:
                 self.channel_id == other.channel_id)
 
 
-def ws_send_error(sock: WebSocketServerProtocol, message: str):
+async def ws_send_error(sock: WebSocketServerProtocol, message: str):
     response = {'error': message}
-    sock.send(bytes(json.dumps(response), 'utf-8'))
+    await sock.send(json.dumps(response))
+    print("[WS] Sent error message:", message)
 
 
 async def ws_client_connect(sock: WebSocketServerProtocol):
     global ws_clients_by_channel
     try:
         async for message in sock:
-            print("Received a message:", message)
+            print("[WS] Received a message:", message)
             
             try:
                 token, username, channel_id = message.split(" ")
                 channel_id = int(channel_id)
                 assert len(username) <= 28 and channel_id >= 0
             except (ValueError, AssertionError):
-                ws_send_error(sock, "Format should be: \"{TOKEN} {USERNAME} {CHANNEL_ID}\"")
-                return
+                await ws_send_error(sock, "Format should be: \"{TOKEN} {USERNAME} {CHANNEL_ID}\"")
+                continue
             
             user_dir = os.path.join(backend_dir, "accounts", username)
             user_meta_file = os.path.join(user_dir, "meta.json")
@@ -96,18 +98,18 @@ async def ws_client_connect(sock: WebSocketServerProtocol):
                 with open(user_meta_file, 'r') as file:
                     user_meta = json.load(file)
             except FileNotFoundError:
-                ws_send_error(sock, "No user belongs to that username")
-                return
+                await ws_send_error(sock, "No user belongs to that username")
+                continue
             except OSError:
-                ws_send_error(sock, "Internal server error (could not read user meta file)")
-                return
+                await ws_send_error(sock, "Internal server error (could not read user meta file)")
+                continue
             
             m = hashlib.sha256()
             m.update(bytes(token, 'utf-8'))
             token_hash = m.hexdigest()
             if token_hash not in user_meta['validTokens']:
-                ws_send_error(sock, "Invalid token")
-                return
+                await ws_send_error(sock, "Invalid token")
+                continue
             
             # Success! Add user to connected clients list
             print("New client connected:", username, channel_id)
@@ -210,7 +212,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             raise FileWriteError
 
 
-    def do_POST_register(self, token:str, username:str):
+    def do_POST_register(self):
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -272,7 +274,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
 
-    def do_POST_login(self, token: str, username: str):
+    def do_POST_login(self):
         content_length = int(self.headers["Content-Length"])
         post_data_raw = self.rfile.read(content_length)
 
@@ -313,7 +315,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             return
 
         generated_token = generate_token()
-        generated_token_hashed = hash_token(token)
+        generated_token_hashed = hash_token(generated_token)
         meta['validTokens'].append(generated_token_hashed)
         
         try:
@@ -433,9 +435,9 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             username = None
 
         if self.path == "/register":
-            self.do_POST_register(token=token, username=username)
+            self.do_POST_register()
         elif self.path == "/login":
-            self.do_POST_login(token=token, username=username)
+            self.do_POST_login()
         elif self.path == "/send_message":
             self.do_POST_send_message(token=token, username=username)
         else:

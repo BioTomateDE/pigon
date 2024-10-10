@@ -300,3 +300,12 @@ function textParser(text) {
 
     return tokens.join("");
 }
+
+
+function clamp(minimum, number, maxiumum) {
+    if (number < minimum)
+        number = minimum;
+    if (number > maxiumum)
+        number = maxiumum;
+    return number;
+}

@@ -32,6 +32,7 @@ body {
     min-width: 0;
     max-width: 85%;
     flex: 1;
+    /* overflow: auto; */
 }
 
 
@@ -40,25 +41,59 @@ body {
     flex-direction: row;
 }
 
-#messages {
-    /* display: flex;
-    flex-direction: column;
-    flex-wrap: wrap; */
-
-    border-radius: 10px;
-    border-color: var(--secondary-color);
-    border-style: solid;
-    border-width: 4px;
-
+#messages-wrapper {
     position: relative;
-    background-color: var(--tenary-color);
+    display: flex;
+
+    border-radius: 3em;
+    /* border-color: var(--secondary-color); */
+    /* border-color: transparent;
+    border-style: solid;
+    border-width: 4px; */
     height: 40em;
-    margin: 0em 0em 2em 0em;
-    padding: 1em 1em 1em 1em;
-    overflow-y: scroll;
-    overflow-wrap:break-word;
+    
+    margin: 0em 0em 0.8em 0em;
 }
 
+.scrollbar {
+    position: relative;
+    width: 1em;
+    background-color: var(--secondary-color);
+    display: flex;
+    justify-content: center;
+}
+
+.scrollbar-scroller {
+    position: absolute;
+    background-color: #1a1a1b;
+    height: 10%; /* PLACEHOLDER */
+    top: 70%; /* PLACEHOLDER */
+    width: 0.6em;
+    border-radius: 20em;
+    margin: auto;
+    /* margin-left: 0.2em; */
+
+    cursor: ns-resize;
+}
+
+
+#messages {
+    display: flex;
+    flex-direction: column-reverse;
+    /* justify-content breaks the scrolling! use margin-top:auto on last child instead */
+
+    position: relative;
+    background-color: var(--primary-color);
+    width: 100%;
+    padding: 1em 1em 1em 1em;
+    overflow-y: hidden;
+    /* overflow-wrap: break-word; */
+}
+
+
+.message:last-child {
+    margin-top: auto;
+}
 
 
 #send-message-text {
@@ -114,6 +149,11 @@ body {
 .message-tempid {
     display: none;
 }
+
+.message-hideheader {
+    margin-top: -0.9em;
+}
+
 
 #channel-header {
     padding: 0em 0em 0.7em 1em;

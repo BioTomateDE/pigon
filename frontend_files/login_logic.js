@@ -21,10 +21,9 @@ function submitLogin() {
         let response = JSON.parse(xhr.responseText);
 
         if (xhr.readyState == 4 && xhr.status == 200 || xhr.status == 201) {
-            console.log(response);
+            // console.log(response);
             errorMessage.style['display'] = 'none';
             infoMessage.style['display'] = 'flex';
-            // localStorage.setItem('token', response['generatedToken']);
             let generatedToken = response['generatedToken']
             let tokenExpiryDate = new Date();
             tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
@@ -36,8 +35,8 @@ function submitLogin() {
             errorMessage.style['display'] = 'flex';
             infoMessage.style['display'] = 'none';
             // fuck it
-            errorMessage.children[1].textContent = `Response ${xhr.status} - ${xhr.statusText}`;
-            errorMessage.children[2].textContent = response['error'];  // what is html injection
+            errorMessage.children[1].innerText = `Response ${xhr.status} - ${xhr.statusText}`;
+            errorMessage.children[2].innerText = response['error'];  // what is html injection
         }
     };
     xhr.send(body);
