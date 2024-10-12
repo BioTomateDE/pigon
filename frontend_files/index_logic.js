@@ -14,7 +14,7 @@ function sendMessage() {
     var messageContainer = document.getElementById('send-message-text');
     var messageText = messageContainer.value.trim();
     if (!messageText) return;
-    console.log("Sending", messageText);
+    console.log("Sending message:", messageText);
     messageContainer.value = "";
 
     let nowSeconds = Math.floor(new Date() / 1000);
@@ -26,9 +26,9 @@ function sendMessage() {
         timestamp: nowSeconds,
         tempID: tempID
     }
-    appendMessage(message, true, true, selfDisplayname);
-    // replaceMessageAuthorName(selfUsername, selfDisplayname);
-
+    let hideHeader = shouldHideHeader(message, messagesBuffer[messagesBuffer.length - 1]);
+    appendMessage(message, { unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader });
+ 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -59,6 +59,7 @@ function replaceMessageAuthorName(username, displayname) {
     // console.log([...placeholderAuthorNodes][0].innerHTML);
 
     [...placeholderAuthorNodes].forEach(authorNode => {
+        console.log(username, displayname, authorNode.innerText)
         if (authorNode.innerText == username) {
             authorNode.innerText = displayname;
             authorNode.classList.remove("message-author-placeholder");
@@ -68,9 +69,10 @@ function replaceMessageAuthorName(username, displayname) {
 
 
 function loadAccountMeta(username) {
-    // console.log("abasfhfbhasbasdgfj", username, Object.keys(accountMetaCache))
     if (username in accountMetaCache) {
-        let displayname = accountMetaCache[username]['displayname'];
+        if (accountMetaCache.username == null) return;
+        
+        let displayname = accountMetaCache[username].displayname;
         replaceMessageAuthorName(username, displayname);
         if (username == selfUsername) {
             insertSelfDisplayname(displayname);
@@ -78,10 +80,12 @@ function loadAccountMeta(username) {
         return;
     }
 
+    accountMetaCache[username] = null;  // Placeholder
     var xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
         if (xhr.readyState != 4) return;
+
         if (xhr.status == 200 || xhr.status == 201) {
             let response = JSON.parse(xhr.responseText);
             accountMetaCache[username] = response;
@@ -91,13 +95,11 @@ function loadAccountMeta(username) {
                 selfDisplayname = displayname;
                 insertSelfDisplayname(displayname);
             }
-            // return [username, displayname];
 
         } else {
-            console.warn(`Error to /USER/about: ${xhr.status} - ${xhr.statusText}`);
+            console.warn(`Error to /users/USER/about: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
-            console.log("Error Message to USER/about:", response['error']);
-            // return [null, null];
+            console.log("Error Message to /users/USER/about:", response['error']);
         }
     }
 
@@ -113,25 +115,27 @@ function insertSelfDisplayname(displayname) {
 }
 
 
-function appendMessage(message, unconfirmed = false, useTempID = false, displayname, hideHeader = false) {
+function appendMessage(message, options={}) {
+    // default options: {unconfirmed: false, hideHeader: false, displayname: undefined, start: false}
+
     let msgDiv = document.getElementById("messages");
     let nodeDiv = document.createElement("div");
     nodeDiv.classList.add("message");
-    if (unconfirmed) {
+    if (options.unconfirmed) {
         nodeDiv.classList.add("message-unconfirmed");
     }
-    if (hideHeader) {
+    if (options.hideHeader) {
         nodeDiv.classList.add("message-hideheader");
     }
 
-    if (!hideHeader) {
+    if (!options.hideHeader) {
         let nodeAuthor = document.createElement("span");
-        if (typeof displayname === "undefined") {
+        if (typeof options.displayname === "undefined") {
             nodeAuthor.innerText = message['author'];
             nodeAuthor.classList.add("message-author-placeholder");
         }
         else {
-            nodeAuthor.innerText = displayname;
+            nodeAuthor.innerText = options.displayname;
         }
         nodeAuthor.classList.add("message-author");
         nodeDiv.appendChild(nodeAuthor);
@@ -143,9 +147,10 @@ function appendMessage(message, unconfirmed = false, useTempID = false, displayn
         nodeTimestamp.classList.add("message-timestamp");
         nodeDiv.appendChild(nodeTimestamp);
 
-        if (useTempID && typeof message['tempID'] !== "undefined") {
+        if (options.unconfirmed && typeof message.tempID !== "undefined") {
+            console.log("fsasffasfdaafd")
             let nodeTempID = document.createElement("span");
-            nodeTempID.innerText = message['tempID'];
+            nodeTempID.innerText = message.tempID;
             nodeTempID.classList.add("message-tempid");
             nodeDiv.appendChild(nodeTempID);
         }
@@ -159,12 +164,26 @@ function appendMessage(message, unconfirmed = false, useTempID = false, displayn
     nodeText.classList.add("message-text");
     nodeDiv.appendChild(nodeText);
 
-    msgDiv.insertBefore(nodeDiv, msgDiv.firstChild);
+    if (options.start) {
+        msgDiv.insertBefore(nodeDiv, msgDiv.firstChild);
+        messagesBuffer.splice(0, 0, message);
+    } else {
+        msgDiv.appendChild(nodeDiv);
+        messagesBuffer.push(message);
+    }
 
     if (msgDiv.scrollHeight - msgDiv.clientHeight - msgDiv.scrollTop > 100) {
         msgDiv.scrollTo(0, msgDiv.scrollHeight);
     }
     initializeScroller();
+}
+
+
+function shouldHideHeader(message, lastMessage) {
+    return (
+        message.author == lastMessage.author &&
+        message.timestamp - lastMessage.timestamp < 420
+    );
 }
 
 
@@ -175,15 +194,14 @@ function loadMessages(batchID) {
     xhr.onreadystatechange = function () {
         if (xhr.readyState == 4 && xhr.status == 200) {
             let messages = JSON.parse(xhr.responseText);
+
             for (let i = messages.length - 1; i >= 0; i--) {
                 let message = messages[i];
-                if (i > 0 && messages[i - 1]['author'] == message['author'] && message['timestamp'] - messages[i - 1]['timestamp'] < 420) {
-                    // fml
-                    appendMessage(message, false, false, undefined, true);
-                }
-                else {
-                    appendMessage(message, false, false, undefined, false);
-                }
+                if (i > 0 && shouldHideHeader(message, messages[i-1]))
+                    appendMessage(message, { start: true, hideHeader: true });
+                else
+                    appendMessage(message, {start: true});
+
                 loadAccountMeta(message['author']);
             }
             loadingMessages = false;
@@ -209,9 +227,9 @@ function loadChannelAbout() {
         if (xhr.readyState == 4 && xhr.status == 200) {
             channelAbout = JSON.parse(xhr.responseText);
             currentBatchID = channelAbout['latestMessageBatch'];
-            let channelHeaderDiv = document.querySelector("#channel-header");
-            let channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
-            let channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
+            const channelHeaderDiv = document.querySelector("#channel-header");
+            const channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
+            const channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
             channelNameNode.innerText = channelAbout['name'];
             channelMembersNode.innerText = channelAbout['members'].join(", ");
 
@@ -249,10 +267,6 @@ function connectWebSocket() {
         sock.send(`${token} ${username} ${channelID}`);
     };
 
-    // sock.onerror = (event) => {
-    //     console.warn("[WS] Connection closed with error:", event);
-    // };
-
     sock.onclose = (event) => {
         console.warn("[WS] Connection closed:", event);
         setTimeout(connectWebSocket, 1000);
@@ -266,11 +280,11 @@ function connectWebSocket() {
         }
 
         console.log("[WS] Received message:", response);
-        appendMessage(response, false, false);
-        loadAccountMeta(response['author']);
-        let tempID = response['tempID'];
-        if (typeof tempID !== "undefined") {
-            removeUnconfirmedMessage(tempID);
+        let hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
+        appendMessage(response, {hideHeader: hideHeader});
+        loadAccountMeta(response.author);
+        if (typeof response.tempID !== "undefined") {
+            removeUnconfirmedMessage(response.tempID);
         }
     }
 
@@ -281,19 +295,28 @@ function connectWebSocket() {
 
 
 function removeUnconfirmedMessage(tempID) {
-    let messageTempIDNodes = document.querySelectorAll(".message .message-tempid");
+    const messageTempIDNodes = document.querySelectorAll(".message .message-tempid");
+
     messageTempIDNodes.forEach(messageTempIDNode => {
         if (messageTempIDNode.innerText == tempID) {
             messageTempIDNode.parentNode.remove();
+        }
+    });
+
+    messagesBuffer.forEach((msg, index, arr) => {
+        if (msg.tempID == tempID) {
+            arr.splice(index, 1);  // removes the element
         }
     });
 }
 
 
 function logout() {
-    console.log("Logging out");
+    if (!confirm("Are you sure you want to log out?\nYou will lose your private key!")) return;
+    console.log("Logging out.");
     deleteCookie("token");
     deleteCookie("username");
+    localStorage.removeItem("privateKey");
     window.location.replace("/login.html");
 }
 
@@ -304,7 +327,7 @@ function logoutAll() {
     console.log("Logging out of all other devices.");
     var xhr = new XMLHttpRequest();
 
-    xhr.onreadystatechange = function () {
+    xhr.onreadystatechange = () => {
         if (xhr.readyState == 4 && xhr.status == 200) {
             response = JSON.parse(xhr.responseText);
             alert("Logged out of all other devices.");
@@ -324,9 +347,29 @@ function logoutAll() {
 
 
 function deleteAccount() {
-    if (confirm("Delete your account?\nThis action is irreversible!")) {
-        alert("hawk tuah");
+    if (!confirm("Delete your account?\nThis action is irreversible!")) return;
+
+    alert("hawk tuah");
+    var xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState == 4 && xhr.status == 200) {
+            response = JSON.parse(xhr.responseText);
+            alert("Account was deleted.");
+            console.log("Response to /delete_account:", response);
+            window.location.replace("/login.html");
+        }
+
+        else if (xhr.readyState == 4) {
+            alert("Could not delete account.\n(Check console for error message.)")
+            console.warn(`Error to /delete_account: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /delete_account:", response['error']);
+        }
     }
+
+    xhr.open("POST", "/delete_account", true);
+    xhr.send(null);
 }
 
 
@@ -480,16 +523,18 @@ function scrollerListener() {
 function initializeScroller() {
     const msgDivWrapper = document.querySelector("#messages-wrapper");
     const msgDiv = document.querySelector("#messages");
-    const scrollbarDiv = document.querySelector("#messages-wrapper .scrollbar");
-    const scroller = scrollbarDiv.querySelector(".scrollbar-scroller");
+    const scrollbar = document.querySelector("#messages-wrapper .scrollbar");
+    const scroller = scrollbar.querySelector(".scrollbar-scroller");
 
     let msgHeightVisible = msgDivWrapper.clientHeight;
     let msgHeightTotal = msgDiv.scrollHeight;
-    const scrollbarHeight = scrollbarDiv.clientHeight;
-    let scrollerHeight = msgHeightVisible / msgHeightTotal * scrollbarHeight;
+    const scrollbarHeight = scrollbar.clientHeight;
+    let ratio = msgHeightVisible / msgHeightTotal;
+    let scrollerHeight = ratio * scrollbarHeight;
 
     scroller.style['height'] = scrollerHeight + 'px';
     scroller.style['top'] = (scrollbarHeight - scrollerHeight) + 'px';
+    scrollbar.style['visibility'] = (ratio < 0.98) ? 'visible' : 'hidden';
 }
 
 
@@ -500,6 +545,7 @@ var accountMetaCache = {};
 var selfUsername = getCookie("username");
 var selfDisplayname = null;
 var loadingMessages = true;
+var messagesBuffer = [];
 
 
 window.onload = (event) => {
