@@ -11,7 +11,7 @@ async function submitRegister() {
     errorMessage.style['display'] = 'none';
     infoMessage.style['display'] = 'none';
 
-    if (password != passwordConfirm) {
+    if (password !== passwordConfirm) {
         errorMessage.style['display'] = 'flex';
         errorMessage.children[1].innerText = "Passwords do not match!";
         errorMessage.children[2].innerText = "The password you entered does not match with password confirmation you entered.\nPlease try again.";
@@ -41,19 +41,17 @@ async function submitRegister() {
     });
 
     xhr.onload = () => {
-        if (xhr.readyState != 4) return;
+        if (xhr.readyState !== 4) return;
 
-        if (xhr.status == 200 || xhr.status == 201) {
+        if (xhr.status === 200 || xhr.status === 201) {
             let response = JSON.parse(xhr.responseText);
             console.log("Response from /register:", response);
             errorMessage.style['display'] = 'none';
             infoMessage.style['display'] = 'flex';
-
-            let generatedToken = response['generatedToken']
-            let tokenExpiryDate = new Date();
-            tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
-            setCookie('token', generatedToken, tokenExpiryDate);
-            setCookie('username', username, tokenExpiryDate);
+            storeLoginData(username, response['generatedToken']);
+            setTimeout(() => {
+                window.location.replace("/");
+            }, 1000);
 
         } else {
             console.warn(`Error from /register: ${xhr.status} - ${xhr.statusText}`);
@@ -76,4 +74,12 @@ window.onload = () => {
         console.log("Redirected from register page to index.");
         window.location.replace("/");
     }
+
+    let passwordInput = document.getElementById('form-password-confirm');
+
+    passwordInput.addEventListener("keyup", (event) => {
+        if (event.key === 'Enter') {
+            submitRegister().then();
+        }
+    })
 }

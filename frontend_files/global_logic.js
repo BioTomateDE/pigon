@@ -37,12 +37,12 @@ function formatDate(date) {
 
     // Note: .getDate() refers to day of the MONTH while .getDay() refers to day of the WEEK even though .getWeek doesn't even exist
 
-    if (date.getFullYear() == now.getFullYear() && date.getMonth() == now.getMonth() && date.getDate() == now.getDate()) {
+    if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()) {
         // Today at Time
         return `Today at ${hours}:${minutes}:${seconds}`
     }
 
-    else if (date.getFullYear() == now.getFullYear() && date.getMonth() == now.getMonth() && date.getDate() == now.getDate() - 1) {
+    else if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate() - 1) {
         // Yesterday at Time
         return `Yesterday at ${hours}:${minutes}`;
     }
@@ -76,10 +76,10 @@ function getCookie(cname) {
     let ca = decodedCookie.split(';');
     for (let i = 0; i < ca.length; i++) {
         let c = ca[i];
-        while (c.charAt(0) == ' ') {
+        while (c.charAt(0) === ' ') {
             c = c.substring(1);
         }
-        if (c.indexOf(name) == 0) {
+        if (c.indexOf(name) === 0) {
             return c.substring(name.length, c.length);
         }
     }
@@ -119,7 +119,7 @@ function textParser(text) {
 
         switch (text[i]) {
             case '\\':
-                if (codeOpenIndex == -1 && codeBlockOpenIndex == -1) {
+                if (codeOpenIndex === -1 && codeBlockOpenIndex === -1) {
                     escaping = !escaping;
                     if (!escaping) {
                         tokens.push('\\');
@@ -127,7 +127,7 @@ function textParser(text) {
                     escapingNow = escaping;
                     i += 1;
                 }
-                else if (i + 1 < text.length && text[i + 1] == '`') {
+                else if (i + 1 < text.length && text[i + 1] === '`') {
                     tokens.push('`');
                     i += 2;
                 }
@@ -140,13 +140,13 @@ function textParser(text) {
 
             case '*':
                 // console.log(i, escaping, italicStarOpenIndex, boldOpenIndex, text[i+1])
-                if (escaping || codeBlockOpenIndex != -1 || codeOpenIndex != -1) {
+                if (escaping || codeBlockOpenIndex !== -1 || codeOpenIndex !== -1) {
                     tokens.push('*');
                     i += 1;
                 }
-                else if (italicStarOpenIndex != -1 || boldOpenIndex != -1) {
+                else if (italicStarOpenIndex !== -1 || boldOpenIndex !== -1) {
                     // close the inner one first
-                    if (italicStarOpenIndex > boldOpenIndex || i + 1 >= text.length || text[i + 1] != '*') {
+                    if (italicStarOpenIndex > boldOpenIndex || i + 1 >= text.length || text[i + 1] !== '*') {
                         if (italicStarOpenIndex >= lastNonWhitespaceToken(tokens)) {
                             tokens[italicStarOpenIndex] = '*';
                             tokens.push('*');
@@ -169,7 +169,7 @@ function textParser(text) {
                         i += 2;
                     }
                 }
-                else if (i + 1 < text.length && text[i + 1] == '*') {
+                else if (i + 1 < text.length && text[i + 1] === '*') {
                     tokens.push('<strong>');
                     boldOpenIndex = tokens.length - 1;
                     i += 2;
@@ -183,15 +183,15 @@ function textParser(text) {
 
 
             case '_':
-                if (escaping || codeBlockOpenIndex != -1 || codeOpenIndex != -1) {
+                if (escaping || codeBlockOpenIndex !== -1 || codeOpenIndex !== -1) {
                     tokens.push('_');
                     i += 1;
                 }
-                else if (italicUnderOpenIndex != -1 || underlineOpenIndex != -1) {
+                else if (italicUnderOpenIndex !== -1 || underlineOpenIndex !== -1) {
                     // close the inner one first
                     if (italicUnderOpenIndex > underlineOpenIndex
                         || i + 1 >= text.length
-                        || text[i + 1] != '_'
+                        || text[i + 1] !== '_'
                     ) {
                         if (italicUnderOpenIndex >= lastNonWhitespaceToken(tokens)) {
                             tokens[italicUnderOpenIndex] = '_';
@@ -215,7 +215,7 @@ function textParser(text) {
                         i += 2;
                     }
                 }
-                else if (i + 1 < text.length && text[i + 1] == '_') {
+                else if (i + 1 < text.length && text[i + 1] === '_') {
                     tokens.push('<u>');
                     underlineOpenIndex = tokens.length - 1;
                     i += 2;
@@ -233,8 +233,8 @@ function textParser(text) {
                     tokens.push('`');
                     i += 1;
                 }
-                else if (codeOpenIndex != -1) {
-                    if (codeOpenIndex == tokens.length - 1) {
+                else if (codeOpenIndex !== -1) {
+                    if (codeOpenIndex === tokens.length - 1) {
                         tokens[codeOpenIndex] = '`';
                         tokens.push('`');
                     }
@@ -244,8 +244,8 @@ function textParser(text) {
                     codeOpenIndex = -1;
                     i += 1;
                 }
-                else if (codeBlockOpenIndex != -1 && i + 1 < text.length && text[i + 1] == '`') {
-                    if (codeBlockOpenIndex == tokens.length - 1) {
+                else if (codeBlockOpenIndex !== -1 && i + 1 < text.length && text[i + 1] === '`') {
+                    if (codeBlockOpenIndex === tokens.length - 1) {
                         tokens[codeBlockOpenIndex] = '``';
                         tokens.push('``');
                     }
@@ -255,7 +255,7 @@ function textParser(text) {
                     codeBlockOpenIndex = -1;
                     i += 2;
                 }
-                else if (i + 1 < text.length && text[i + 1] == '`') {
+                else if (i + 1 < text.length && text[i + 1] === '`') {
                     tokens.push('<pre><code>');
                     codeBlockOpenIndex = tokens.length - 1;
                     i += 2;
@@ -279,22 +279,22 @@ function textParser(text) {
     }
 
     // check for opened indexes and pop them from the list
-    if (italicStarOpenIndex != -1) {
+    if (italicStarOpenIndex !== -1) {
         tokens[italicStarOpenIndex] = '*';
     }
-    if (boldOpenIndex != -1) {
+    if (boldOpenIndex !== -1) {
         tokens[boldOpenIndex] = '**';
     }
-    if (codeOpenIndex != -1) {
+    if (codeOpenIndex !== -1) {
         tokens[codeOpenIndex] = '`';
     }
-    if (codeBlockOpenIndex != -1) {
+    if (codeBlockOpenIndex !== -1) {
         tokens[codeBlockOpenIndex] = '``';
     }
-    if (italicUnderOpenIndex != -1) {
+    if (italicUnderOpenIndex !== -1) {
         tokens[italicUnderOpenIndex] = '_';
     }
-    if (underlineOpenIndex != -1) {
+    if (underlineOpenIndex !== -1) {
         tokens[underlineOpenIndex] = '__';
     }
 
@@ -302,12 +302,20 @@ function textParser(text) {
 }
 
 
-function clamp(minimum, number, maxiumum) {
+function clamp(minimum, number, maximum) {
     if (number < minimum)
         number = minimum;
-    if (number > maxiumum)
-        number = maxiumum;
+    if (number > maximum)
+        number = maximum;
     return number;
+}
+
+
+function storeLoginData(username, generatedToken) {
+    let tokenExpiryDate = new Date();
+    tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
+    setCookie('token', generatedToken, tokenExpiryDate);
+    setCookie('username', username, tokenExpiryDate);
 }
 
 
@@ -343,7 +351,7 @@ async function retrievePrivateKey() {
         jwk,
         keyGenOptions,
         true,
-        ["encrypt", "decrypt"]
+        ["decrypt"]
     );
     return privateKey;
 }
@@ -355,4 +363,17 @@ const keyGenOptions = {
     publicExponent: new Uint8Array([1, 0, 1]),
     hash: "SHA-256",
 };
+
+
+function encrypt(key, string) {
+    let encoded = new TextEncoder().encode(string);
+    let encrypted = crypto.subtle.encrypt(keyGenOptions, key, encoded);
+    return encrypted;
+}
+
+function decrypt(key, encrypted) {
+    let decrypted = crypto.subtle.decrypt(keyGenOptions, key, encrypted)
+    let decoded = new TextDecoder().decode(decrypted);
+    return decoded;
+}
 

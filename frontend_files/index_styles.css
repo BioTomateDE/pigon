@@ -15,6 +15,11 @@ body {
     gap: 1em;
 }
 
+.title {
+    display: flex;
+    align-items: center;
+}
+
 
 #sidebar {
     display: flex;
@@ -134,7 +139,12 @@ body {
 
 
 #channel-header {
-    padding: 0em 0em 0.7em 1em;
+    padding: 0em 0em 0.7em 0em;
+}
+
+#channel-actions {
+    display: flex;
+    gap: 2em;
 }
 
 #channel-header-name {

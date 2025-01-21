@@ -15,7 +15,10 @@
 </head>
 
 <body>
-    <h1>Pigon Messenger</h1>
+    <div class="title">
+        <img src="/favicon.ico" width="40" height="40">
+        <h1>Pigon Messenger</h1>
+    </div>
 
     <div id="flex-container">
         <div id="sidebar">
@@ -38,6 +41,12 @@
             <div id="channel-header">
                 <h2 id="channel-header-name">Channel Name</h2>
                 <p id="channel-header-members">Member 1, Member 2, Member 3</p>
+                <br>
+                <div id="channel-actions">
+                    <a href="javascript:deleteChannel()" class="dangerous">Delete Channel</a>
+                    <a href="javascript:addMember()">Add member</a>
+                    <a href="javascript:removeMember()">Remove member</a>
+                </div>
             </div>
 
             <div id="messages-wrapper">

@@ -10,6 +10,7 @@
         <link rel="stylesheet" href="/register_styles.css">
     </head>
     <body>
+    <div class="body-wrapper">
         <h1>Register</h1>
 
         <div id="register-form">
@@ -25,10 +26,12 @@
             <label for="password-confirm">Confirm Password:</label><br>
             <input type="password" id="form-password-confirm" name="password-confirm" placeholder="••••••••••••••"><br>
 
-            <input type="submit" value="Submit" onclick="submitRegister()">
+            <input type="submit" value="Register" onclick="submitRegister()">
         </div>
 
         <a href="/login.html">Already have an account?</a>
+
+    </div>
 
         <div id="error-message">
             <h3>An error has occured!</h3>

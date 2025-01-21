@@ -1,24 +1,24 @@
 document.getElementById('send-message-text').onkeydown = e => {
-    if (e.code == "Enter" && !e.shiftKey) {
+    if (e.code === "Enter" && !e.shiftKey) {
         sendMessage();
     }
 };
 
 
-function getChannelID() {
-    return Number(document.location.pathname.split("/")[2]);
+function getCurrentChannelID() {
+    return document.location.pathname.split("/")[2];
 }
 
 
 function sendMessage() {
-    var messageContainer = document.getElementById('send-message-text');
-    var messageText = messageContainer.value.trim();
+    const messageContainer = document.getElementById('send-message-text');
+    const messageText = messageContainer.value.trim();
     if (!messageText) return;
     console.log("Sending message:", messageText);
     messageContainer.value = "";
 
     let nowSeconds = Math.floor(new Date() / 1000);
-    let tempID = Math.floor(new Date());
+    let tempID = Math.floor(+new Date() + Math.random() * 1000);
 
     let message = {
         author: selfUsername,
@@ -26,14 +26,17 @@ function sendMessage() {
         timestamp: nowSeconds,
         tempID: tempID
     }
-    let hideHeader = shouldHideHeader(message, messagesBuffer[messagesBuffer.length - 1]);
+    let hideHeader = false;
+    if (messagesBuffer.length >= 1) {
+        hideHeader = shouldHideHeader(message, messagesBuffer[messagesBuffer.length - 1]);
+    }
     appendMessage(message, { unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader });
  
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
 
-    let channelID = getChannelID();
+    let channelID = getCurrentChannelID();
 
     const body = JSON.stringify({
         channel: channelID,
@@ -42,7 +45,7 @@ function sendMessage() {
     });
 
     xhr.onload = () => {
-        if (xhr.readyState == 4 && xhr.status == 200 || xhr.status == 201) {
+        if (xhr.readyState === 4 && xhr.status === 200 || xhr.status === 201) {
             console.log("Response to /send_message:", JSON.parse(xhr.responseText));
         } else {
             console.warn(`Error to /send_message: ${xhr.status} - ${xhr.statusText}`);
@@ -60,7 +63,7 @@ function replaceMessageAuthorName(username, displayname) {
 
     [...placeholderAuthorNodes].forEach(authorNode => {
         console.log(username, displayname, authorNode.innerText)
-        if (authorNode.innerText == username) {
+        if (authorNode.innerText === username) {
             authorNode.innerText = displayname;
             authorNode.classList.remove("message-author-placeholder");
         }
@@ -74,24 +77,24 @@ function loadAccountMeta(username) {
         
         let displayname = accountMetaCache[username].displayname;
         replaceMessageAuthorName(username, displayname);
-        if (username == selfUsername) {
+        if (username === selfUsername) {
             insertSelfDisplayname(displayname);
         }
         return;
     }
 
     accountMetaCache[username] = null;  // Placeholder
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
-        if (xhr.readyState != 4) return;
+        if (xhr.readyState !== 4) return;
 
-        if (xhr.status == 200 || xhr.status == 201) {
+        if (xhr.status === 200 || xhr.status === 201) {
             let response = JSON.parse(xhr.responseText);
             accountMetaCache[username] = response;
             let displayname = response['displayname'];
             replaceMessageAuthorName(username, displayname);
-            if (username == selfUsername) {
+            if (username === selfUsername) {
                 selfDisplayname = displayname;
                 insertSelfDisplayname(displayname);
             }
@@ -142,19 +145,20 @@ function appendMessage(message, options={}) {
 
         let nodeTimestamp = document.createElement("span");
         let date = new Date(message['timestamp'] * 1000);
-        let dateFormatted = formatDate(date);
-        nodeTimestamp.innerText = dateFormatted;
+        nodeTimestamp.innerText = formatDate(date);
         nodeTimestamp.classList.add("message-timestamp");
         nodeDiv.appendChild(nodeTimestamp);
+    }
 
-        if (options.unconfirmed && typeof message.tempID !== "undefined") {
-            console.log("fsasffasfdaafd")
-            let nodeTempID = document.createElement("span");
-            nodeTempID.innerText = message.tempID;
-            nodeTempID.classList.add("message-tempid");
-            nodeDiv.appendChild(nodeTempID);
-        }
+    if (options.unconfirmed && typeof message.tempID !== "undefined") {
+        console.log("fsasffasfdaafd")
+        let nodeTempID = document.createElement("span");
+        nodeTempID.innerText = message.tempID;
+        nodeTempID.classList.add("message-tempid");
+        nodeDiv.appendChild(nodeTempID);
+    }
 
+    if (!options.hideHeader) {
         let nodeBr = document.createElement("br");
         nodeDiv.appendChild(nodeBr);
     }
@@ -181,7 +185,7 @@ function appendMessage(message, options={}) {
 
 function shouldHideHeader(message, lastMessage) {
     return (
-        message.author == lastMessage.author &&
+        message.author === lastMessage.author &&
         message.timestamp - lastMessage.timestamp < 420
     );
 }
@@ -189,10 +193,10 @@ function shouldHideHeader(message, lastMessage) {
 
 function loadMessages(batchID) {
     loadingMessages = true;
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = function () {
-        if (xhr.readyState == 4 && xhr.status == 200) {
+        if (xhr.readyState === 4 && xhr.status === 200) {
             let messages = JSON.parse(xhr.responseText);
 
             for (let i = messages.length - 1; i >= 0; i--) {
@@ -207,7 +211,7 @@ function loadMessages(batchID) {
             loadingMessages = false;
         }
 
-        else if (xhr.readyState == 4) {
+        else if (xhr.readyState === 4) {
             console.warn(`Error to /channels/CHANNEL/messages: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /channels/CHANNEL/messages:", response['error']);
@@ -221,10 +225,10 @@ function loadMessages(batchID) {
 
 
 function loadChannelAbout() {
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = function () {
-        if (xhr.readyState == 4 && xhr.status == 200) {
+        if (xhr.readyState === 4 && xhr.status === 200) {
             channelAbout = JSON.parse(xhr.responseText);
             currentBatchID = channelAbout['latestMessageBatch'];
             const channelHeaderDiv = document.querySelector("#channel-header");
@@ -239,10 +243,10 @@ function loadChannelAbout() {
             currentBatchID--;
         }
 
-        else if (xhr.readyState == 4) {
+        else if (xhr.readyState === 4) {
             let response = JSON.parse(xhr.responseText);
             console.warn(xhr.status, xhr.statusText, response);
-            if (xhr.status == 401) {
+            if (xhr.status === 401) {
                 deleteCookie("token");
                 deleteCookie("username");
                 console.log("Token was deleted.");
@@ -262,7 +266,7 @@ function loadChannelAbout() {
 function connectWebSocket() {
     const sock = new WebSocket(`ws://${window.location.hostname}:8982`);
 
-    sock.onopen = (event) => {
+    sock.onopen = () => {
         console.log("[WS] Connection opened. Sent token and username.");
         sock.send(`${token} ${username} ${channelID}`);
     };
@@ -280,7 +284,10 @@ function connectWebSocket() {
         }
 
         console.log("[WS] Received message:", response);
-        let hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
+        let hideHeader = false;
+        if (messagesBuffer.length >= 1) {
+            hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
+        }
         appendMessage(response, {hideHeader: hideHeader});
         loadAccountMeta(response.author);
         if (typeof response.tempID !== "undefined") {
@@ -290,21 +297,24 @@ function connectWebSocket() {
 
     let token = getCookie("token");
     let username = getCookie("username");
-    let channelID = getChannelID();
+    let channelID = getCurrentChannelID();
 }
 
 
 function removeUnconfirmedMessage(tempID) {
     const messageTempIDNodes = document.querySelectorAll(".message .message-tempid");
+    console.log(messageTempIDNodes);
 
     messageTempIDNodes.forEach(messageTempIDNode => {
+        console.log(messageTempIDNode.innerText, tempID);
         if (messageTempIDNode.innerText == tempID) {
+            console.log("skibid")
             messageTempIDNode.parentNode.remove();
         }
     });
 
     messagesBuffer.forEach((msg, index, arr) => {
-        if (msg.tempID == tempID) {
+        if (msg.tempID === tempID) {
             arr.splice(index, 1);  // removes the element
         }
     });
@@ -325,23 +335,23 @@ function logoutAll() {
     if (!confirm("Log out of all other devices?")) return;
 
     console.log("Logging out of all other devices.");
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
-        if (xhr.readyState == 4 && xhr.status == 200) {
-            response = JSON.parse(xhr.responseText);
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
             alert("Logged out of all other devices.");
-            console.log("Response to /logout_all_other_devices:", response);
+            console.log("Response to /logout_all_other_sessions:", response);
         }
 
-        else if (xhr.readyState == 4) {
-            console.warn(`Error to /logout_all_other_devices: ${xhr.status} - ${xhr.statusText}`);
+        else if (xhr.readyState === 4) {
+            console.warn(`Error to /logout_all_other_sessions: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
-            console.log("Error Message to /logout_all_other_devices:", response['error']);
+            console.log("Error Message to /logout_all_other_sessions:", response['error']);
         }
     }
 
-    xhr.open("POST", "/logout_all_other_devices", true);
+    xhr.open("POST", "/logout_all_other_sessions", true);
     xhr.send(null);
 }
 
@@ -350,17 +360,17 @@ function deleteAccount() {
     if (!confirm("Delete your account?\nThis action is irreversible!")) return;
 
     alert("hawk tuah");
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
-        if (xhr.readyState == 4 && xhr.status == 200) {
-            response = JSON.parse(xhr.responseText);
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
             alert("Account was deleted.");
             console.log("Response to /delete_account:", response);
             window.location.replace("/login.html");
         }
 
-        else if (xhr.readyState == 4) {
+        else if (xhr.readyState === 4) {
             alert("Could not delete account.\n(Check console for error message.)")
             console.warn(`Error to /delete_account: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
@@ -372,38 +382,61 @@ function deleteAccount() {
     xhr.send(null);
 }
 
+function addChannelToSidebar(channelID, channelName) {
+    let sidebarChannels = document.querySelector("#sidebar-channels");
+
+    let nodeDiv = document.createElement("div");
+    nodeDiv.classList.add("sidebar-channel");
+
+    let nodeLink = document.createElement("a");
+    nodeLink.classList.add("unstyled-link");
+    nodeLink.href = `/channels/${channelID}/`;
+
+    let nodeName = document.createElement("p");
+    nodeName.classList.add("sidebar-channel-name");
+    nodeName.innerText = `${channelName}`;
+
+    let nodeDivider = document.createElement("span");
+    nodeDivider.classList.add("divider-small");
+
+    nodeLink.appendChild(nodeName);
+    nodeDiv.appendChild(nodeLink);
+    sidebarChannels.appendChild(nodeDiv);
+    sidebarChannels.appendChild(nodeDivider);
+}
+
+
+function removeChannelFromSidebar(channelID) {
+    let sidebarChannels = document.querySelector("#sidebar-channels");
+
+    for (let i = 0; i < sidebarChannels.children.length; i++) {
+        const sidebarChannel = sidebarChannels.children[i];
+        let sidebarChannelHref = sidebarChannel.querySelector("a").getAttribute("href");
+        let sidebarChannelID = sidebarChannelHref.substring(0, sidebarChannelHref.length-1).substring(sidebarChannelHref.lastIndexOf("/") + 1);
+        console.log("remvoeFromASidebar", sidebarChannelID);
+        if (sidebarChannelID === channelID) {
+            sidebarChannels.removeChild(sidebarChannels.children[i]);
+            return;
+        }
+
+    }
+}
+
+
 
 function loadSelfChannels() {
-    var xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
-        if (xhr.readyState != 4) return;
+        if (xhr.readyState !== 4) return;
 
-        if (xhr.status == 200) {
-            response = JSON.parse(xhr.responseText);
+        if (xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
             console.log("Response to /get_self_channels:", response);
 
             // put in sidebar
-            let sidebarChannels = document.querySelector("#sidebar-channels");
             for (const [channelID, channelName] of Object.entries(response)) {
-                let nodeDiv = document.createElement("div");
-                nodeDiv.classList.add("sidebar-channel");
-
-                let nodeLink = document.createElement("a");
-                nodeLink.classList.add("unstyled-link");
-                nodeLink.href = `/channels/${channelID}/`;
-
-                let nodeName = document.createElement("p");
-                nodeName.classList.add("sidebar-channel-name");
-                nodeName.innerText = channelName;
-
-                let nodeDivider = document.createElement("span");
-                nodeDivider.classList.add("divider-small");
-
-                nodeLink.appendChild(nodeName);
-                nodeDiv.appendChild(nodeLink);
-                sidebarChannels.appendChild(nodeDiv);
-                sidebarChannels.appendChild(nodeDivider);
+                addChannelToSidebar(channelID, channelName);
             }
         }
 
@@ -418,46 +451,46 @@ function loadSelfChannels() {
     xhr.send(null);
 }
 
-function messagesAutoLoader() {
-    if (loadingMessages) {
-        setTimeout(messagesAutoLoader, 300);
-        return;
-    }
-
-    var messagesDiv = document.querySelector("#messages");
-    // if (messagesDiv.children.length == 0) {
-    //     setTimeout(messagesAutoLoader, )
-    // }
-
-    var oldestMessage = messagesDiv.children[messagesDiv.children.length - 1];
-
-    let rectElem = oldestMessage.getBoundingClientRect();
-    let rectContainer = messagesDiv.getBoundingClientRect();
-
-    if (rectElem.top - 1 > rectContainer.top) {
-        setTimeout(messagesAutoLoader, 300);
-        return;
-    }
-
-    loadMessages(currentBatchID);
-    currentBatchID--;
-    if (currentBatchID > 0) {
-        setTimeout(messagesAutoLoader, 300);
-    }
-}
+// function messagesAutoLoader() {
+//     if (loadingMessages) {
+//         setTimeout(messagesAutoLoader, 300);
+//         return;
+//     }
+//
+//     const messagesDiv = document.querySelector("#messages");
+//     // if (messagesDiv.children.length == 0) {
+//     //     setTimeout(messagesAutoLoader, )
+//     // }
+//
+//     const oldestMessage = messagesDiv.children[messagesDiv.children.length - 1];
+//
+//     let rectElem = oldestMessage.getBoundingClientRect();
+//     let rectContainer = messagesDiv.getBoundingClientRect();
+//
+//     if (rectElem.top - 1 > rectContainer.top) {
+//         setTimeout(messagesAutoLoader, 300);
+//         return;
+//     }
+//
+//     loadMessages(currentBatchID);
+//     currentBatchID--;
+//     if (currentBatchID > 0) {
+//         setTimeout(messagesAutoLoader, 300);
+//     }
+// }
 
 
 function scrollerListener() {
-    var initialPointerY = null;
-    var initialScrollerTop = null;
-    var usingScrollbar = false;
+    let initialPointerY = null;
+    let initialScrollerTop = null;
+    let usingScrollbar = false;
 
-    var msgDivWrapper = document.querySelector("#messages-wrapper");
-    var msgDiv = document.querySelector("#messages");
-    var scrollbar = document.querySelector("#messages-wrapper .scrollbar");
-    var scroller = scrollbar.querySelector(".scrollbar-scroller");
+    const msgDivWrapper = document.querySelector("#messages-wrapper");
+    const msgDiv = document.querySelector("#messages");
+    const scrollbar = document.querySelector("#messages-wrapper .scrollbar");
+    const scroller = scrollbar.querySelector(".scrollbar-scroller");
 
-    var messageLoader = _.throttle(() => {
+    const messageLoader = _.throttle(() => {
         if (currentBatchID < 1) return;
         console.log("Checking if messages need to be loaded");
 
@@ -467,7 +500,7 @@ function scrollerListener() {
         }
     }, 200);
 
-    var mousemoveCallback = (event2) => {
+    const mousemoveCallback = (event2) => {
         const scrollbarHeight = scrollbar.clientHeight;
         const scrollerHeight = scroller.clientHeight;
         const msgHeightTotal = msgDiv.scrollHeight;
@@ -481,7 +514,7 @@ function scrollerListener() {
         let ratio = scrollerTop / (scrollbarHeight - scrollerHeight);
         let msgScrollTop = ratio * (msgHeightTotal - msgHeightVisible);
 
-        msgDiv.scrollTo({ top: msgScrollTop });
+        msgDiv.scrollTo({top: msgScrollTop});
         messageLoader();
     };
 
@@ -502,7 +535,7 @@ function scrollerListener() {
         event.preventDefault();    // Prevents selecting while scrolling
     });
 
-    msgDiv.addEventListener('scroll', _.throttle((event) => {
+    msgDiv.addEventListener('scroll', _.throttle(() => {
         if (usingScrollbar) return;
 
         const scrollbarHeight = scrollbar.clientHeight;
@@ -538,17 +571,81 @@ function initializeScroller() {
 }
 
 
-// variables and stuff
-var channelAbout = null;
-var currentBatchID = null;
-var accountMetaCache = {};
-var selfUsername = getCookie("username");
-var selfDisplayname = null;
-var loadingMessages = true;
-var messagesBuffer = [];
+function createChannel() {
+    let channelName = prompt("Name for the new channel:").trim();
+    if (!channelName) return;
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
+            console.log("Response to /create_channel:", response);
+            let channelID = response['channelID'];
+            window.location.replace(`/channels/${channelID}/`);
+            addChannelToSidebar(channelID, channelName);
+        }
+        else {
+            console.warn(`Error to /create_channel: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /create_channel:", response['error']);
+        }
+    }
+
+    xhr.open("POST", "/create_channel", true);
+    let body = JSON.stringify({
+        channelName: channelName
+    })
+    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+    xhr.send(body);
+}
 
 
-window.onload = (event) => {
+
+function deleteChannel() {
+    if (!confirm("Are you sure you want to delete this channel?")) return;
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
+            console.log("Response to /delete_channel:", response);
+            let channelID = response['channelID'];
+            window.location.replace(`/`);
+            removeChannelFromSidebar(channelID);
+        }
+        else {
+            console.warn(`Error to /delete_channel: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /delete_channel:", response['error']);
+        }
+    }
+
+    xhr.open("POST", "/delete_channel", true);
+    let body = JSON.stringify({
+        channelID: getCurrentChannelID()
+    })
+    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+    xhr.send(body);
+}
+
+
+
+window.onload = () => {
+    // variables and stuff
+    channelAbout = null;
+    currentBatchID = null;
+    accountMetaCache = {};
+    selfUsername = getCookie("username");
+    selfDisplayname = null;
+    loadingMessages = true;
+    messagesBuffer = [];
+
     console.log("Document is loaded. Loading channel about.");
     loadChannelAbout();
     console.log("Channel about loaded. Loading self displayname and channels.");
@@ -559,3 +656,5 @@ window.onload = (event) => {
     initializeScroller();
     scrollerListener();
 }
+
+// TODO: self username not replacing in message

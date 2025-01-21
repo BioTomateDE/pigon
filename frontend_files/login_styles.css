@@ -11,7 +11,6 @@ input {
     border-radius: 5px;
     border-color: #f54b2d;
     border-style: solid;
-    border-radius: 5px;
 }
 
 #info-message {
@@ -22,5 +21,15 @@ input {
     border-radius: 5px;
     border-color: #70f035;
     border-style: solid;
-    border-radius: 5px;
+}
+
+
+.body-wrapper {
+    position: relative;
+    margin: 0 auto;
+    padding: 0rem 5rem 10rem 5rem;
+    height: 100%;
+    border: transparent 5px solid;
+    border-radius: 4px;
+    background: #151616;
 }

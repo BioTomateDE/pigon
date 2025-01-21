@@ -10,19 +10,23 @@
         <link rel="stylesheet" href="/login_styles.css">
     </head>
     <body>
-        <h1>Login</h1>
+        <div class="body-wrapper">
+            <h1>Login</h1>
 
-        <div id="register-form">
-            <label for="username">Username:</label><br>
-            <input type="text" id="form-username" name="username" placeholder="max.mustermann"><br>
+            <div id="register-form">
+                <label for="username">Username:</label><br>
+                <input type="text" id="form-username" name="username" placeholder="max.mustermann"><br>
 
-            <label for="password">Password:</label><br>
-            <input type="password" id="form-password" name="password" placeholder="••••••••••••••"><br>
+                <label for="password">Password:</label><br>
+                <input type="password" id="form-password" name="password" placeholder="••••••••••••••"><br>
 
-            <input type="submit" value="Submit" onclick="submitLogin()">
+                <input type="submit" value="Login" onclick="submitLogin()">
+            </div>
+
+            <br><br>
+            <a href="/register.html">Don't have an account?</a>
+
         </div>
-
-        <a href="/register.html">Don't have an account?</a>
 
         <div id="error-message">
             <h3>An error has occured!</h3>
