@@ -319,9 +319,32 @@ function storeLoginData(username, generatedToken) {
 }
 
 
+const rsaKeyOps = {
+    name: "RSA-OAEP",
+    modulusLength: 4096,
+    publicExponent: new Uint8Array([1, 0, 1]),
+    hash: "SHA-256",
+};
+
+const aesKeyOps = {
+    name: "AES-CBC",
+    length: 256,
+};
+
+
+async function generateSymmetricKey() {
+    let key = await crypto.subtle.generateKey(
+        aesKeyOps,
+        true,
+        ['decrypt', 'encrypt']
+    );
+    return key;
+}
+
+
 async function generateKeyPair() {
     let keyPair = await window.crypto.subtle.generateKey(
-        keyGenOptions,
+        rsaKeyOps,
         true,
         ["encrypt", "decrypt"],
     );
@@ -349,31 +372,53 @@ async function retrievePrivateKey() {
     let privateKey = await crypto.subtle.importKey(
         "jwk",
         jwk,
-        keyGenOptions,
+        rsaKeyOps,
         true,
         ["decrypt"]
     );
     return privateKey;
 }
 
-
-const keyGenOptions = {
-    name: "RSA-OAEP",
-    modulusLength: 4096,
-    publicExponent: new Uint8Array([1, 0, 1]),
-    hash: "SHA-256",
-};
+async function importRsaPublicKey(keyRaw) {
+    let key = await crypto.subtle.importKey("jwk", keyRaw, rsaKeyOps, true, ['encrypt']);
+    return key;
+}
 
 
-function encrypt(key, string) {
+async function rsaEncrypt(key, string) {
     let encoded = new TextEncoder().encode(string);
-    let encrypted = crypto.subtle.encrypt(keyGenOptions, key, encoded);
+    let encrypted = await crypto.subtle.encrypt(rsaKeyOps, key, encoded);
     return encrypted;
 }
 
-function decrypt(key, encrypted) {
-    let decrypted = crypto.subtle.decrypt(keyGenOptions, key, encrypted)
+async function rsaDecrypt(key, encrypted) {
+    let decrypted = await crypto.subtle.decrypt(rsaKeyOps, key, encrypted);
     let decoded = new TextDecoder().decode(decrypted);
     return decoded;
 }
 
+async function aesEncrypt(key, string) {
+    let encoded = new TextEncoder().encode(string);
+    let encrypted = await crypto.subtle.encrypt(aesKeyOps, key, encoded);
+    return encrypted;
+}
+
+async function aesDecrypt(key, encrypted) {
+    let decrypted = await crypto.subtle.decrypt(aesKeyOps, key, encrypted);
+    let decoded = new TextDecoder().decode(decrypted);
+    return decoded;
+}
+
+
+
+// v TODO fix base64 encoding (js is weird ngl)
+function aesEncodeKey(key) {
+    let encoded = btoa(new TextDecoder().decode(key));
+    return encoded;
+}
+
+function aesDecodeKey(encoded) {
+    let key = new TextEncoder().encode(atob(encoded));
+    return key;
+}
+// ^

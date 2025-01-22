@@ -242,8 +242,10 @@ function loadChannelAbout(alsoLoadMessages=false) {
                 console.log("Got channel about. Loading messages.");
                 loadMessages(currentBatchID);
                 currentBatchID--;
-                loadMessages(currentBatchID);
-                currentBatchID--;
+                if (currentBatchID > 0) {
+                    loadMessages(currentBatchID);
+                    currentBatchID--;
+                }
             }
         }
 
@@ -353,6 +355,7 @@ function logoutAll() {
             console.warn(`Error to /logout_all_other_sessions: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /logout_all_other_sessions:", response['error']);
+            alert(`Could not log out all other devices: ${response['error']}`);
         }
     }
 
@@ -575,7 +578,7 @@ function initializeScroller() {
 }
 
 
-function createChannel() {
+async function createChannel() {
     let channelName = prompt("Name for the new channel:")
     if (!channelName) return;
     channelName = channelName.trim();
@@ -599,9 +602,16 @@ function createChannel() {
         }
     }
 
+    let channelKey = await generateSymmetricKey();
+    let publicKeyRaw = accountMetaCache[selfUsername].publicKey;
+    let publicKey = await importRsaPublicKey(publicKeyRaw);
+    let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
+    let encodedChannelKey = aesEncodeKey(encryptedChannelKey);
+
     xhr.open("POST", "/create_channel", true);
     let body = JSON.stringify({
-        channelName: channelName
+        channelName: channelName,
+        encryptedChannelKey: encodedChannelKey,
     })
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body);
@@ -641,10 +651,16 @@ function deleteChannel() {
 }
 
 
-function addMember() {
+async function addMember() {
     let memberUsername = prompt("Username of the member you want to add:");
     if (!memberUsername) return;
     memberUsername = memberUsername.trim().toLowerCase();
+
+    if (!(memberUsername in accountMetaCache)) {
+        loadAccountMeta(memberUsername);
+        alert("Please retry in a few seconds.");
+        return;
+    }
 
     const xhr = new XMLHttpRequest();
 
@@ -664,10 +680,21 @@ function addMember() {
         }
     }
 
+    let selfEncryptedChannelKey = accountMetaCache[selfUsername].channels[getCurrentChannelID()];
+
+    let encodedSelfPrivateKey = await retrievePrivateKey();
+    let selfPrivateKey = aesDecodeKey(encodedSelfPrivateKey);
+    let channelKey = rsaDecrypt(selfPrivateKey, selfEncryptedChannelKey);
+    let publicKeyRaw = accountMetaCache[memberUsername].publicKey;
+    let publicKey = await importRsaPublicKey(publicKeyRaw);
+    let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
+    let encodedChannelKey = aesEncodeKey(encryptedChannelKey);
+
     xhr.open("POST", "/add_member_to_channel", true);
     let body = JSON.stringify({
         channelID: getCurrentChannelID(),
         newMember: memberUsername,
+        encryptedChannelKey: encodedChannelKey,
     })
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body);

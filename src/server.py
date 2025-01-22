@@ -270,7 +270,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             "validTokens": [generated_token_hash],
             "deleted": False,
             "publicKey": public_key,
-            "channels": []
+            "channels": {}
         }
 
         os.makedirs(user_dir)
@@ -477,15 +477,15 @@ class HTTPHandler(SimpleHTTPRequestHandler):
 
         try:
             channel_name = post_data['channelName'].strip()
+            encrypted_channel_key = post_data['encryptedChannelKey']
         except (KeyError, ValueError, TypeError):
-            self.send_error(400, "Channel Name is missing or invalid; should be string")
+            self.send_error(400, "Channel Name/Encrypted Channel Key is missing or invalid; should be string")
             return
 
         if not self.validate_auth(token, username, True):
             return
 
         channel_id = str(time.time_ns() + random.randint(1, 100))
-        print(channel_id, str(channel_id))
         channel_dir = os.path.join(backend_dir, "channels", channel_id)
         message_batches_dir = os.path.join(channel_dir, "message_batches")
         current_message_batch_file = os.path.join(message_batches_dir, "1.json")
@@ -508,7 +508,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         # Successfully created channel! Add user to channel
         user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
         user_meta = self.read_json_file(user_meta_file, "User doesn't exist but literally should because already authorized.", "user meta")
-        user_meta['channels'].append(channel_id)
+        user_meta['channels'][channel_id] = encrypted_channel_key
         self.write_json_file(user_meta_file, user_meta, "user meta")
 
         self.send_response(200)
@@ -573,8 +573,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 continue
 
             try:
-                user_meta['channels'].remove(channel_id)
-            except ValueError:   # user wasn't in channel for some reason
+                del user_meta['channels'][channel_id]
+            except KeyError:   # user wasn't in channel for some reason
                 print("User wasn't in channel??")
                 continue
 
@@ -605,6 +605,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             channel_id: str = post_data['channelID'].strip()
             new_member: str = post_data['newMember'].strip()
             assert validate_username(new_member)
+            encrypted_channel_key = post_data['encryptedChannelKey']
         except (KeyError, ValueError, TypeError, AssertionError):
             self.send_error(400, "Channel Name/New Member is missing or invalid; should be string")
             return
@@ -618,7 +619,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except FileReadError:
             return
 
-        if channel_id in new_member_meta['channels']:
+        if channel_id in new_member_meta['channels'].keys():
             self.send_error(400, "Member is already in the channel!")
             return
 
@@ -637,7 +638,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         #     self.send_error(400, "Member is already in the channel!")
         #     return
 
-        new_member_meta['channels'].append(channel_id)
+        new_member_meta['channels'][channel_id] = encrypted_channel_key
         channel_meta['members'].append(new_member)
 
         try:
@@ -685,7 +686,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except FileReadError:
             return
 
-        if channel_id not in member_meta['channels']:
+        if channel_id not in member_meta['channels'].keys():
             self.send_error(404, "Member is not in the channel in the first place!")
             return
 
@@ -704,7 +705,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Member is not in the channel in the first place!")
             return
 
-        member_meta['channels'].remove(channel_id)
+        del member_meta['channels'][channel_id]
         channel_meta['members'].remove(member)
 
         try:
@@ -907,7 +908,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             return
 
         target_username, sub = regex_match.groups()
-        sub = "" if sub == None else sub.strip("/")
+        sub = "" if sub is None else sub.strip("/")
 
         if not sub:
             self.send_response(200)
@@ -917,20 +918,30 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.write(bytes(message, 'utf-8'))
 
         elif sub == "about":
-            self.do_GET_users_about(target_username)
+            self.do_GET_users_about(token, username, target_username)
 
-    def do_GET_users_about(self, target_username: str):
+    def do_GET_users_about(self, token: str, username: str, target_username: str):
         account_dir = os.path.join(backend_dir, "accounts", target_username)
         user_meta_file = os.path.join(account_dir, "meta.json")
+
+        if not validate_username(target_username):
+            self.send_error(400, "Invalid username.")
+            return
+
+        if not self.validate_auth(token, username):
+            return
 
         try:
             user_meta_private = self.read_json_file(user_meta_file, "User not found.", "user meta")
         except FileReadError:
             return
 
-        # Success! Send filtered account meta
-        keys_filter = ['displayname', 'accountCreated', 'deleted', 'publicKey']
-        user_meta_public = {key: value for key, value in user_meta_private.items() if key in keys_filter}
+        # Success! Send (filtered) account meta
+        if username == target_username:
+            user_meta_public = user_meta_private
+        else:
+            keys_filter = ['displayname', 'accountCreated', 'deleted', 'publicKey']
+            user_meta_public = {key: value for key, value in user_meta_private.items() if key in keys_filter}
 
         self.send_response(200)
         self.send_header("Content-Type", "text/json")

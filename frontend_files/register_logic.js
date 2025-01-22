@@ -39,11 +39,15 @@ async function submitRegister() {
     try {
         await storePrivateKey(keyPair.privateKey);
     } catch (error) {
-        errorMessage.style['display'] = 'flex';
-        errorMessage.children[1].innerText = "Already registered!";
-        errorMessage.children[2].innerText = "There is already a private key stored in localstorage.\nYou can log in probably.";
-        enableFormSubmit();
-        return;
+        if (getCookie("token") && getCookie("username")) {
+            errorMessage.style['display'] = 'flex';
+            errorMessage.children[1].innerText = "Already registered!";
+            errorMessage.children[2].innerText = "You already have login data!\nRedirecting you to the login page...";
+            enableFormSubmit();
+            setTimeout(() => window.location.replace("/login.html"), 1500)
+            return;
+        }
+        localStorage.removeItem("privateKey");
     }
 
     let publicKeyJWK = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
