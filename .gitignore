@@ -1,4 +1,5 @@
 __pycache__
 *.pyc
 .env
-backend_files/accounts
+backend_files/accounts/*
+backend_files/channels/*

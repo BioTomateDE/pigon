@@ -1,15 +1,1 @@
-{
-  "displayname": "hawk tuah sigma",
-  "accountCreated": 1727101865,
-  "passwordHash": "93ff54d8fa58674d24392e13a03dd8e299f6c0c049ba79f53eaad2b7d9a204c9",
-  "validTokens": [
-    "f2630ddec330cb08b6ad9ef3bef0616a81d4c8391ac42e45bbc7967ddcaadffc",
-    "95d51bb927b9b5ccb653ff4ee1d06d3b0e84610ea4060a320cc94f66919a4a7e",
-    "06ea73aa59f2cfc23b41d5c64ec9e5e078a1d578f79763c72da0759307826d63",
-    "2170978058f0861998c4c3a69023947af9116f9111f9e0b655e59e0d0b9ebe79"
-  ],
-  "channels": [
-    "1",
-    "2"
-  ]
-}
+{"displayname": "hawk tuah sigma", "accountCreated": 1727101865, "passwordHash": "93ff54d8fa58674d24392e13a03dd8e299f6c0c049ba79f53eaad2b7d9a204c9", "validTokens": ["f2630ddec330cb08b6ad9ef3bef0616a81d4c8391ac42e45bbc7967ddcaadffc", "95d51bb927b9b5ccb653ff4ee1d06d3b0e84610ea4060a320cc94f66919a4a7e", "06ea73aa59f2cfc23b41d5c64ec9e5e078a1d578f79763c72da0759307826d63", "2170978058f0861998c4c3a69023947af9116f9111f9e0b655e59e0d0b9ebe79"], "channels": ["1", "2", "1737553909644943785", "1737556850366849259"]}

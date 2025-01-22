@@ -1,10 +1,26 @@
 
+
+function disableFormSubmit() {
+    const formSubmitButton = document.getElementById('form-submit');
+    formSubmitButton.disabled = true;
+    formSubmitButton.classList.add('disabled');
+}
+
+function enableFormSubmit() {
+    const formSubmitButton = document.getElementById('form-submit');
+    formSubmitButton.disabled = false;
+    formSubmitButton.classList.remove('disabled');
+}
+
+
 async function submitRegister() {
     const username = document.getElementById('form-username').value.trim();
     const displayname = document.getElementById('form-displayname').value.trim();
     const password = document.getElementById('form-password').value;
     const passwordConfirm = document.getElementById('form-password-confirm').value;
     if (!( username && displayname && password && passwordConfirm )) return;
+
+    disableFormSubmit();
 
     const errorMessage = document.getElementById('error-message');
     const infoMessage = document.getElementById('info-message');
@@ -15,6 +31,7 @@ async function submitRegister() {
         errorMessage.style['display'] = 'flex';
         errorMessage.children[1].innerText = "Passwords do not match!";
         errorMessage.children[2].innerText = "The password you entered does not match with password confirmation you entered.\nPlease try again.";
+        enableFormSubmit();
         return;
     }
 
@@ -25,6 +42,7 @@ async function submitRegister() {
         errorMessage.style['display'] = 'flex';
         errorMessage.children[1].innerText = "Already registered!";
         errorMessage.children[2].innerText = "There is already a private key stored in localstorage.\nYou can log in probably.";
+        enableFormSubmit();
         return;
     }
 
@@ -61,6 +79,7 @@ async function submitRegister() {
             infoMessage.style['display'] = 'none';
             errorMessage.children[1].innerText = `Response ${xhr.status} - ${xhr.statusText}`;
             errorMessage.children[2].innerText = response['error'];
+            enableFormSubmit();
         }
     };
 

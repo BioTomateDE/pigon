@@ -140,7 +140,7 @@ async def ws_main():
 
 
 # -------- Globals --------
-# WARNING: / or \ SHOULD NEVER BE ALLOWED FOR PATH SECURITY
+# WARNING: ./\ SHOULD NEVER BE ALLOWED FOR PATH SECURITY
 USERNAME_CHARSET = set("abcdefghijklmnopqrstuvwxyz-_")
 MESSAGE_BATCH_SIZE = 30
 ws_clients_by_channel: dict[int, list[WSConnectedClient]] = {}
@@ -270,7 +270,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             "validTokens": [generated_token_hash],
             "deleted": False,
             "publicKey": public_key,
-            "channels": [1]  # TODO remove bc temporary (or keep as global chat lol)
+            "channels": []
         }
 
         os.makedirs(user_dir)
@@ -375,6 +375,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             channel_meta = self.read_json_file(channel_meta_file, "Channel not found.", "channel meta")
         except FileReadError:
+            return
+
+        if username not in channel_meta['members']:
+            self.send_error(403, "You do not have permission to send messages in this channel!")
             return
 
         batch_id = channel_meta['latestMessageBatch']
@@ -587,6 +591,190 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
 
+    def do_POST_add_member_to_channel(self, token: str, username: str):
+        content_length = int(self.headers["Content-Length"])
+        post_data_raw = self.rfile.read(content_length)
+
+        try:
+            post_data = json.loads(post_data_raw)
+        except ValueError:
+            self.send_error(400, "Content Type should be JSON.")
+            return
+
+        try:
+            channel_id: str = post_data['channelID'].strip()
+            new_member: str = post_data['newMember'].strip()
+            assert validate_username(new_member)
+        except (KeyError, ValueError, TypeError, AssertionError):
+            self.send_error(400, "Channel Name/New Member is missing or invalid; should be string")
+            return
+
+        if not self.validate_auth(token, username, True):
+            return
+
+        new_member_meta_file = os.path.join(backend_dir, "accounts", new_member, "meta.json")
+        try:
+            new_member_meta = self.read_json_file(new_member_meta_file, "Member does not exist!", "member meta")
+        except FileReadError:
+            return
+
+        if channel_id in new_member_meta['channels']:
+            self.send_error(400, "Member is already in the channel!")
+            return
+
+        channel_dir = os.path.join(backend_dir, "channels", channel_id)
+        channel_meta_file = os.path.join(channel_dir, "meta.json")
+        try:
+            channel_meta = self.read_json_file(channel_meta_file, "Channel does not exist!", "channel meta")
+        except FileReadError:
+            return
+
+        if username not in channel_meta['members']:
+            self.send_error(403, "You do not have permission to add members to this channel!")
+            return
+
+        # if new_member in channel_meta['members']:
+        #     self.send_error(400, "Member is already in the channel!")
+        #     return
+
+        new_member_meta['channels'].append(channel_id)
+        channel_meta['members'].append(new_member)
+
+        try:
+            self.write_json_file(new_member_meta_file, new_member_meta, "member meta")
+        except FileWriteError:
+            return
+
+        try:
+            self.write_json_file(channel_meta_file, channel_meta, "channel meta")
+        except FileWriteError:
+            return
+
+        # Success! Added member to channel
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        response = {}
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+
+
+    def do_POST_remove_member_from_channel(self, token: str, username: str):
+        content_length = int(self.headers["Content-Length"])
+        post_data_raw = self.rfile.read(content_length)
+
+        try:
+            post_data = json.loads(post_data_raw)
+        except ValueError:
+            self.send_error(400, "Content Type should be JSON.")
+            return
+
+        try:
+            channel_id: str = post_data['channelID'].strip()
+            member: str = post_data['newMember'].strip()
+            assert validate_username(member)
+        except (KeyError, ValueError, TypeError, AssertionError):
+            self.send_error(400, "Channel Name/New Member is missing or invalid; should be string")
+            return
+
+        if not self.validate_auth(token, username, True):
+            return
+
+        member_meta_file = os.path.join(backend_dir, "accounts", member, "meta.json")
+        try:
+            member_meta = self.read_json_file(member_meta_file, "Member does not exist!", "member meta")
+        except FileReadError:
+            return
+
+        if channel_id not in member_meta['channels']:
+            self.send_error(404, "Member is not in the channel in the first place!")
+            return
+
+        channel_dir = os.path.join(backend_dir, "channels", channel_id)
+        channel_meta_file = os.path.join(channel_dir, "meta.json")
+        try:
+            channel_meta = self.read_json_file(channel_meta_file, "Channel does not exist!", "channel meta")
+        except FileReadError:
+            return
+
+        if username not in channel_meta['members']:
+            self.send_error(403, "You do not have permission to remove members from this channel!")
+            return
+
+        if member not in channel_meta['members']:
+            self.send_error(404, "Member is not in the channel in the first place!")
+            return
+
+        member_meta['channels'].remove(channel_id)
+        channel_meta['members'].remove(member)
+
+        try:
+            self.write_json_file(member_meta_file, member_meta, "member meta")
+        except FileWriteError:
+            return
+
+        try:
+            self.write_json_file(channel_meta_file, channel_meta, "channel meta")
+        except FileWriteError:
+            return
+
+        # Success! Removed member from channel
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        response = {}
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+
+
+    def do_POST_delete_account(self, token: str, username: str):
+        if not self.validate_auth(token, username, True):
+            return
+
+        user_dir = os.path.join(backend_dir, "accounts", username)
+        user_meta_file = os.path.join(user_dir, "meta.json")
+
+        try:
+            user_meta = self.read_json_file(user_meta_file, "User does not exist", "user meta")
+        except FileReadError:
+            return
+
+        if len(user_dir.strip()) < 20:
+            print("Channel Dir empty somehow; preventing deleting root!")
+            return
+
+        try:
+            shutil.rmtree(user_dir)
+        except FileNotFoundError:   # user didn't exist in the first place somehow
+            pass
+
+        # Success! Deleted account. Remove them from every channel as well
+        for channel in user_meta['channels']:
+            channel_meta_file = os.path.join(backend_dir, "channels", channel, "meta.json")
+            try:
+                channel_meta = self.read_json_file(channel_meta_file, "Channel does not exist somehow", "channel meta", False)
+            except FileReadError:   # channel doesn't exist for some reason
+                print("Channel doesn't exist??")
+                continue
+
+            try:
+                channel_meta['members'].remove(username)
+            except ValueError:   # user wasn't in channel for some reason
+                print("User wasn't in channel??")
+                continue
+
+            try:
+                self.write_json_file(channel_meta_file, channel_meta, "channel meta", False)
+            except FileWriteError:
+                continue
+
+
+        self.send_response(200)
+        self.send_header('Content-Type', "text/json")
+        self.end_headers()
+        response = {}
+        self.wfile.write(bytes(json.dumps(response), "utf8"))
+
+
+
     def do_POST(self):
         print("[POST]", self.path)
 
@@ -611,6 +799,12 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.do_POST_create_channel(token, username)
         elif self.path == "/delete_channel":
             self.do_POST_delete_channel(token, username)
+        elif self.path == "/add_member_to_channel":
+            self.do_POST_add_member_to_channel(token, username)
+        elif self.path == "/remove_member_from_channel":
+            self.do_POST_remove_member_from_channel(token, username)
+        elif self.path == "/delete_account":
+            self.do_POST_delete_account(token, username)
         else:
             self.send_error(404, "Invalid post URI.")
             return

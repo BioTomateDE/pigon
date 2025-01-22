@@ -224,7 +224,7 @@ function loadMessages(batchID) {
 }
 
 
-function loadChannelAbout() {
+function loadChannelAbout(alsoLoadMessages=false) {
     const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = function () {
@@ -237,10 +237,14 @@ function loadChannelAbout() {
             channelNameNode.innerText = channelAbout['name'];
             channelMembersNode.innerText = channelAbout['members'].join(", ");
 
-            console.log("Channel about:", channelAbout);
-            console.log("Got channel about. Loading messages.");
-            loadMessages(currentBatchID);
-            currentBatchID--;
+            if (alsoLoadMessages) {
+                console.log("Channel about:", channelAbout);
+                console.log("Got channel about. Loading messages.");
+                loadMessages(currentBatchID);
+                currentBatchID--;
+                loadMessages(currentBatchID);
+                currentBatchID--;
+            }
         }
 
         else if (xhr.readyState === 4) {
@@ -308,7 +312,6 @@ function removeUnconfirmedMessage(tempID) {
     messageTempIDNodes.forEach(messageTempIDNode => {
         console.log(messageTempIDNode.innerText, tempID);
         if (messageTempIDNode.innerText == tempID) {
-            console.log("skibid")
             messageTempIDNode.parentNode.remove();
         }
     });
@@ -321,8 +324,10 @@ function removeUnconfirmedMessage(tempID) {
 }
 
 
-function logout() {
-    if (!confirm("Are you sure you want to log out?\nYou will lose your private key!")) return;
+function logout(noConfirm) {
+    if (!noConfirm) {
+        if (!confirm("Are you sure you want to log out?\nYou will lose your private key!")) return;
+    }
     console.log("Logging out.");
     deleteCookie("token");
     deleteCookie("username");
@@ -358,23 +363,22 @@ function logoutAll() {
 
 function deleteAccount() {
     if (!confirm("Delete your account?\nThis action is irreversible!")) return;
-
-    alert("hawk tuah");
+    if (!confirm("Really delete it forever?")) return;
     const xhr = new XMLHttpRequest();
 
     xhr.onreadystatechange = () => {
         if (xhr.readyState === 4 && xhr.status === 200) {
             let response = JSON.parse(xhr.responseText);
-            alert("Account was deleted.");
             console.log("Response to /delete_account:", response);
-            window.location.replace("/login.html");
+            alert("Your account was deleted.");
+            logout(true);
         }
 
         else if (xhr.readyState === 4) {
-            alert("Could not delete account.\n(Check console for error message.)")
             console.warn(`Error to /delete_account: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /delete_account:", response['error']);
+            alert(`Could not delete account: ${response['error']}`);
         }
     }
 
@@ -572,8 +576,9 @@ function initializeScroller() {
 
 
 function createChannel() {
-    let channelName = prompt("Name for the new channel:").trim();
+    let channelName = prompt("Name for the new channel:")
     if (!channelName) return;
+    channelName = channelName.trim();
 
     const xhr = new XMLHttpRequest();
 
@@ -623,12 +628,79 @@ function deleteChannel() {
             console.warn(`Error to /delete_channel: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /delete_channel:", response['error']);
+            alert(`Could not delete channel because: ${response['error']}`);
         }
     }
 
     xhr.open("POST", "/delete_channel", true);
     let body = JSON.stringify({
         channelID: getCurrentChannelID()
+    })
+    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+    xhr.send(body);
+}
+
+
+function addMember() {
+    let memberUsername = prompt("Username of the member you want to add:");
+    if (!memberUsername) return;
+    memberUsername = memberUsername.trim().toLowerCase();
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
+            console.log("Response to /add_member_to_channel:", response);
+            loadChannelAbout();
+        }
+        else {
+            console.warn(`Error to /add_member_to_channel: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /add_member_to_channel:", response['error']);
+            alert(`Could not add member to this channel because: ${response['error']}`);
+        }
+    }
+
+    xhr.open("POST", "/add_member_to_channel", true);
+    let body = JSON.stringify({
+        channelID: getCurrentChannelID(),
+        newMember: memberUsername,
+    })
+    xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+    xhr.send(body);
+}
+
+
+function removeMember() {
+    let memberUsername = prompt("Username of the member you want to remove:");
+    if (!memberUsername) return;
+    memberUsername = memberUsername.trim().toLowerCase();
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.onreadystatechange = () => {
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status === 200) {
+            let response = JSON.parse(xhr.responseText);
+            console.log("Response to /remove_member_from_channel:", response);
+            loadChannelAbout();
+        }
+        else {
+            console.warn(`Error to /remove_member_from_channel: ${xhr.status} - ${xhr.statusText}`);
+            let response = JSON.parse(xhr.responseText);
+            console.log("Error Message to /remove_member_from_channel:", response['error']);
+            alert(`Could not remove member from channel because: ${response['error']}`);
+        }
+    }
+
+    xhr.open("POST", "/remove_member_from_channel", true);
+    let body = JSON.stringify({
+        channelID: getCurrentChannelID(),
+        newMember: memberUsername,
     })
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body);
@@ -647,7 +719,7 @@ window.onload = () => {
     messagesBuffer = [];
 
     console.log("Document is loaded. Loading channel about.");
-    loadChannelAbout();
+    loadChannelAbout(true);
     console.log("Channel about loaded. Loading self displayname and channels.");
     loadAccountMeta(selfUsername);
     loadSelfChannels();
