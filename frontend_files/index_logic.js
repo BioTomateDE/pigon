@@ -2,7 +2,16 @@ function ErrNotFound(message = "") {
     this.name = "ErrNotFound";
     this.message = message;
 }
+
 ErrNotFound.prototype = Error.prototype;
+
+
+function ErrChannelInvalid(message = "") {
+    this.name = "ErrChannelInvalid";
+    this.message = message;
+}
+
+ErrChannelInvalid.prototype = Error.prototype;
 
 
 function getCurrentChannelID() {
@@ -35,8 +44,8 @@ async function sendMessage() {
     if (messagesBuffer.length >= 1) {
         hideHeader = shouldHideHeader(message, messagesBuffer[messagesBuffer.length - 1]);
     }
-    appendMessage(message, { unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader });
- 
+    appendMessage(message, {unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader});
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -45,7 +54,7 @@ async function sendMessage() {
 
     const body = JSON.stringify({
         channel: channelID,
-        text: await aesEncrypt(channelKey, messageText),
+        text: (await aesEncrypt(channelKey, messageText)),
         tempID: tempID,
     });
 
@@ -108,7 +117,7 @@ function insertSelfDisplayname() {
 }
 
 
-function appendMessage(message, options={}) {
+function appendMessage(message, options = {}) {
     // default options: {unconfirmed: false, hideHeader: false, displayname: undefined, start: false}
 
     let msgDiv = document.getElementById("messages");
@@ -126,8 +135,7 @@ function appendMessage(message, options={}) {
         if (typeof options.displayname === "undefined") {
             nodeAuthor.innerText = message['author'];
             nodeAuthor.classList.add("message-author-placeholder");
-        }
-        else {
+        } else {
             nodeAuthor.innerText = options.displayname;
         }
         nodeAuthor.classList.add("message-author");
@@ -221,7 +229,16 @@ async function loadChannelAbout() {
         const channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
         const channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
         channelNameNode.innerText = channelAbout['name'];
-        channelMembersNode.innerText = channelAbout['members'].join(", ");
+
+        let memberDisplaynames = [];
+        for (const memberUsername of channelAbout['members']) {
+            const memberDisplayname = (await loadAccountMeta(memberUsername)).displayname;
+            memberDisplaynames.push(memberDisplayname);
+        }
+        channelMembersNode.innerText = memberDisplaynames.join(", ");
+
+        const pageDiv = document.getElementById("page");
+        pageDiv.style.visibility = "visible";
         return;
     }
 
@@ -235,7 +252,9 @@ async function loadChannelAbout() {
         console.log("Login info was deleted.");
         window.location.replace("/login.html");
         // TODO display error message
+        return;
     }
+    throw new ErrChannelInvalid();
 
 }
 
@@ -284,7 +303,7 @@ function removeUnconfirmedMessage(tempID) {
 
     messageTempIDNodes.forEach(messageTempIDNode => {
         // console.log(messageTempIDNode.innerText, tempID);
-        if (messageTempIDNode.innerText == tempID) {
+        if (messageTempIDNode.innerText === tempID) {
             messageTempIDNode.parentNode.remove();
         }
     });
@@ -320,9 +339,7 @@ function logoutAll() {
             let response = JSON.parse(xhr.responseText);
             alert("Logged out of all other devices.");
             console.log("Response to /logout_all_other_sessions:", response);
-        }
-
-        else if (xhr.readyState === 4) {
+        } else if (xhr.readyState === 4) {
             console.warn(`Error to /logout_all_other_sessions: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /logout_all_other_sessions:", response['error']);
@@ -346,9 +363,7 @@ function deleteAccount() {
             console.log("Response to /delete_account:", response);
             alert("Your account was deleted.");
             logout(true);
-        }
-
-        else if (xhr.readyState === 4) {
+        } else if (xhr.readyState === 4) {
             console.warn(`Error to /delete_account: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /delete_account:", response['error']);
@@ -407,7 +422,7 @@ function removeChannelFromSidebar(channelID) {
     for (let i = 0; i < sidebarChannels.children.length; i++) {
         const sidebarChannel = sidebarChannels.children[i];
         let sidebarChannelHref = sidebarChannel.querySelector("a").getAttribute("href");
-        let sidebarChannelID = sidebarChannelHref.substring(0, sidebarChannelHref.length-1).substring(sidebarChannelHref.lastIndexOf("/") + 1);
+        let sidebarChannelID = sidebarChannelHref.substring(0, sidebarChannelHref.length - 1).substring(sidebarChannelHref.lastIndexOf("/") + 1);
         console.log("remvoeFromASidebar", sidebarChannelID);
         if (sidebarChannelID === channelID) {
             sidebarChannels.removeChild(sidebarChannels.children[i]);
@@ -416,7 +431,6 @@ function removeChannelFromSidebar(channelID) {
 
     }
 }
-
 
 
 function scrollerListener() {
@@ -525,8 +539,7 @@ async function createChannel() {
             let channelID = response['channelID'];
             window.location.replace(`/channels/${channelID}/`);
             addChannelToSidebar(channelID, channelName);
-        }
-        else {
+        } else {
             console.warn(`Error to /create_channel: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /create_channel:", response['error']);
@@ -549,7 +562,6 @@ async function createChannel() {
 }
 
 
-
 function deleteChannel() {
     if (!confirm("Are you sure you want to delete this channel?")) return;
 
@@ -564,8 +576,7 @@ function deleteChannel() {
             let channelID = response['channelID'];
             window.location.replace(`/`);
             removeChannelFromSidebar(channelID);
-        }
-        else {
+        } else {
             console.warn(`Error to /delete_channel: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /delete_channel:", response['error']);
@@ -591,6 +602,7 @@ async function addMember() {
         await loadAccountMeta(memberUsername);
     } catch (error) {
         if (error instanceof ErrNotFound) {
+            alert("Could not add member to this channel because the user doesn't exist.")
             return;   // user does not exist
         }
     }
@@ -604,8 +616,7 @@ async function addMember() {
             let response = JSON.parse(xhr.responseText);
             console.log("Response to /add_member_to_channel:", response);
             loadChannelAbout().then();
-        }
-        else {
+        } else {
             console.warn(`Error to /add_member_to_channel: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /add_member_to_channel:", response['error']);
@@ -651,8 +662,7 @@ function removeMember() {
             let response = JSON.parse(xhr.responseText);
             console.log("Response to /remove_member_from_channel:", response);
             loadChannelAbout().then();
-        }
-        else {
+        } else {
             console.warn(`Error to /remove_member_from_channel: ${xhr.status} - ${xhr.statusText}`);
             let response = JSON.parse(xhr.responseText);
             console.log("Error Message to /remove_member_from_channel:", response['error']);
@@ -679,7 +689,6 @@ async function loadChannelKey() {
 }
 
 
-
 window.onload = async () => {
     document.getElementById('send-message-text').onkeydown = async e => {
         if (e.code === "Enter" && !e.shiftKey) {
@@ -701,13 +710,19 @@ window.onload = async () => {
     await loadAccountMeta(selfUsername);
     try {
         await loadChannelKey();
-    }
-    catch (error) {
+    } catch (error) {
         console.warn(`Could not get channel key for channel ${getCurrentChannelID()}.`);
     }
 
     console.log("Self account info loaded. Loading current channel info.");
-    await loadChannelAbout();
+    try {
+        await loadChannelAbout();
+    } catch (error) {
+        if (window.location.pathname !== "/") {
+            console.log("Redirecting to root because channel load failed...");
+            window.location.replace("/");
+        }
+    }
 
     console.log("Channel about loaded. Loading self channels.");
     await loadSelfChannels();
