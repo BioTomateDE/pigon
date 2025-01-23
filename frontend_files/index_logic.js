@@ -256,7 +256,6 @@ async function loadChannelAbout() {
         deleteCookie("username");
         console.log("Login info was deleted.");
         window.location.replace("/login.html");
-        // TODO display error message
         return;
     }
     throw new ErrChannelInvalid();
@@ -729,7 +728,6 @@ window.onload = async () => {
     try {
         await loadChannelKey();
     } catch (error) {
-        throw error;
         console.warn(`Could not get channel key for channel ${getCurrentChannelID()}.`);
     }
 

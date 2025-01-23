@@ -152,7 +152,7 @@ function textParser(text) {
                         }
                         italicStarOpenIndex = -1;
                         i += 1;
-                    } else {  // TODO verify that next char is actually *
+                    } else {
                         if (boldOpenIndex >= lastNonWhitespaceToken(tokens)) {
                             tokens[boldOpenIndex] = '**';
                             tokens.push('**');
@@ -192,7 +192,7 @@ function textParser(text) {
                         }
                         italicUnderOpenIndex = -1;
                         i += 1;
-                    } else {  // TODO verify that the next char is actually _
+                    } else {
                         if (underlineOpenIndex >= lastNonWhitespaceToken(tokens)) {
                             tokens[underlineOpenIndex] = '__';
                             tokens.push('__');
