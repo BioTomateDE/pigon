@@ -2,18 +2,23 @@
 
 function disableFormSubmit() {
     const formSubmitButton = document.getElementById('form-submit');
-    formSubmitButton.disabled = true;
     formSubmitButton.classList.add('disabled');
 }
 
 function enableFormSubmit() {
     const formSubmitButton = document.getElementById('form-submit');
-    formSubmitButton.disabled = false;
     formSubmitButton.classList.remove('disabled');
+}
+
+function checkFormSubmitEnabled() {
+    const formSubmitButton = document.getElementById('form-submit');
+    return !formSubmitButton.classList.contains('disabled');
 }
 
 
 async function submitRegister() {
+    if (!checkFormSubmitEnabled()) return;
+
     const username = document.getElementById('form-username').value.trim();
     const displayname = document.getElementById('form-displayname').value.trim();
     const password = document.getElementById('form-password').value;
@@ -39,6 +44,7 @@ async function submitRegister() {
     try {
         await storePrivateKey(keyPair.privateKey);
     } catch (error) {
+        console.log("Removing existing private key!", error);
         if (getCookie("token") && getCookie("username")) {
             errorMessage.style['display'] = 'flex';
             errorMessage.children[1].innerText = "Already registered!";
@@ -48,9 +54,10 @@ async function submitRegister() {
             return;
         }
         localStorage.removeItem("privateKey");
+        enableFormSubmit();
     }
 
-    let publicKeyJWK = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+    let publicKeyRaw = base64js.fromByteArray(new Uint8Array(await crypto.subtle.exportKey("spki", keyPair.publicKey)));
 
     const xhr = new XMLHttpRequest();
     // xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
@@ -59,7 +66,7 @@ async function submitRegister() {
         username: username,
         displayname: displayname,
         password: password,
-        publicKey: publicKeyJWK,
+        publicKey: publicKeyRaw,
     });
 
     xhr.onload = () => {

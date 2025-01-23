@@ -38,3 +38,8 @@ input {
     border-radius: 4px;
     background: #151616;
 }
+
+
+.disabled {
+    background-color: #bababa !important;
+}

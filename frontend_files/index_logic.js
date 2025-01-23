@@ -32,11 +32,15 @@ async function sendMessage() {
     messageContainer.value = "";
 
     let nowSeconds = Math.floor(new Date() / 1000);
-    let tempID = Math.floor(+new Date() + Math.random() * 1000);
+    let tempID = `${Math.floor(+new Date() + Math.random() * 1000)}`;
+
+    let channelID = getCurrentChannelID();
+    let encryptedText = await aesEncrypt(channelKey, messageText, channelKeyIV);
+    let encodedEncryptedText = base64js.fromByteArray(new Uint8Array(encryptedText));
 
     let message = {
         author: selfUsername,
-        text: messageText,
+        text: encodedEncryptedText,
         timestamp: nowSeconds,
         tempID: tempID
     }
@@ -44,17 +48,15 @@ async function sendMessage() {
     if (messagesBuffer.length >= 1) {
         hideHeader = shouldHideHeader(message, messagesBuffer[messagesBuffer.length - 1]);
     }
-    appendMessage(message, {unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader});
+    await appendMessage(message, {unconfirmed: true, displayname: selfDisplayname, hideHeader: hideHeader});
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', "/send_message");
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
 
-    let channelID = getCurrentChannelID();
-
     const body = JSON.stringify({
         channel: channelID,
-        text: (await aesEncrypt(channelKey, messageText)),
+        text: encodedEncryptedText,
         tempID: tempID,
     });
 
@@ -117,7 +119,7 @@ function insertSelfDisplayname() {
 }
 
 
-function appendMessage(message, options = {}) {
+async function appendMessage(message, options = {}) {
     // default options: {unconfirmed: false, hideHeader: false, displayname: undefined, start: false}
 
     let msgDiv = document.getElementById("messages");
@@ -162,7 +164,10 @@ function appendMessage(message, options = {}) {
     }
 
     let nodeText = document.createElement("span");
-    nodeText.innerHTML = textParser(message['text']);
+    let encodedEncryptedText = message['text'];
+    let encryptedText = base64js.toByteArray(encodedEncryptedText);
+    let text = await aesDecrypt(channelKey, encryptedText, channelKeyIV);
+    nodeText.innerHTML = textParser(text);
     nodeText.classList.add("message-text");
     nodeDiv.appendChild(nodeText);
 
@@ -202,9 +207,9 @@ async function loadMessages(batchID) {
             await loadAccountMeta(message.author);
 
             if (i > 0 && shouldHideHeader(message, messages[i - 1])) {
-                appendMessage(message, {start: true, hideHeader: true});
+                await appendMessage(message, {start: true, hideHeader: true});
             } else {
-                appendMessage(message, {start: true});
+                await appendMessage(message, {start: true});
             }
         }
         loadingMessages = false;
@@ -285,7 +290,7 @@ function connectWebSocket() {
             hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
         }
         await loadAccountMeta(response.author);
-        appendMessage(response, {hideHeader: hideHeader});
+        await appendMessage(response, {hideHeader: hideHeader});
         if (typeof response.tempID !== "undefined") {
             removeUnconfirmedMessage(response.tempID);
         }
@@ -546,16 +551,19 @@ async function createChannel() {
         }
     }
 
-    let channelKey = await generateSymmetricKey();
+    let channelKeyRaw = await generateSymmetricKey();
     let publicKeyRaw = accountMetaCache[selfUsername].publicKey;
     let publicKey = await importRsaPublicKey(publicKeyRaw);
-    let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
+    let encryptedChannelKey = await rsaEncrypt(publicKey, channelKeyRaw);
     let encodedChannelKey = base64js.fromByteArray(new Uint8Array(encryptedChannelKey));
+
+    channelKeyIV = base64js.fromByteArray(generateIV());
 
     xhr.open("POST", "/create_channel", true);
     let body = JSON.stringify({
         channelName: channelName,
         encryptedChannelKey: encodedChannelKey,
+        iv: channelKeyIV
     })
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body);
@@ -626,8 +634,10 @@ async function addMember() {
 
     let selfPrivateKey = await retrievePrivateKey();
 
-    let selfEncryptedEncodedChannelKey = accountMetaCache[selfUsername].channels[getCurrentChannelID()];
-    let selfEncryptedChannelKey = base64js.toByteArray(selfEncryptedEncodedChannelKey);
+    let selfKeys = accountMetaCache[selfUsername].channels[getCurrentChannelID()];
+    let selfEncodedEncryptedChannelKey = selfKeys.encryptedKey;
+    let channelKeyIV = selfKeys.iv;
+    let selfEncryptedChannelKey = base64js.toByteArray(selfEncodedEncryptedChannelKey);
 
     let channelKey = await rsaDecrypt(selfPrivateKey, selfEncryptedChannelKey);
 
@@ -635,13 +645,15 @@ async function addMember() {
     let publicKey = await importRsaPublicKey(publicKeyRaw);
 
     let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
-    let encodedChannelKey = base64js.fromByteArray(encryptedChannelKey);
+    let encodedChannelKey = base64js.fromByteArray(new Uint8Array(encryptedChannelKey));
+
 
     xhr.open("POST", "/add_member_to_channel", true);
     let body = JSON.stringify({
         channelID: getCurrentChannelID(),
         newMember: memberUsername,
         encryptedChannelKey: encodedChannelKey,
+        iv: channelKeyIV
     })
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body);
@@ -683,9 +695,14 @@ function removeMember() {
 async function loadChannelKey() {
     const selfPrivateKey = await retrievePrivateKey();
     const channelID = getCurrentChannelID();
-    const encodedEncryptedChannelKey = accountMetaCache[selfUsername].channels[channelID];
+    const selfKeys = accountMetaCache[selfUsername].channels[channelID];
+    const encodedEncryptedChannelKey = selfKeys.encryptedKey;
     const encryptedChannelKey = base64js.toByteArray(encodedEncryptedChannelKey);
-    channelKey = await rsaDecrypt(selfPrivateKey, encryptedChannelKey);
+    const channelKeyRaw = await rsaDecrypt(selfPrivateKey, encryptedChannelKey);
+    channelKey = await importChannelKey(channelKeyRaw);
+
+    const encodedIV = selfKeys.iv;
+    channelKeyIV = base64js.toByteArray(encodedIV);
 }
 
 
@@ -705,12 +722,14 @@ window.onload = async () => {
     loadingMessages = true;
     messagesBuffer = [];
     channelKey = null;
+    channelKeyIV = null;
 
     console.log("Document loaded. Loading self account info.");
     await loadAccountMeta(selfUsername);
     try {
         await loadChannelKey();
     } catch (error) {
+        throw error;
         console.warn(`Could not get channel key for channel ${getCurrentChannelID()}.`);
     }
 

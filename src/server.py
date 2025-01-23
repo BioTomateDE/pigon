@@ -19,10 +19,11 @@ from websockets.server import serve as ws_serve
 # -------- Utility --------
 def validate_username(username: str) -> bool:
     return (
-            3 <= len(username) <= 28
-            and all(ch in USERNAME_CHARSET for ch in username)
-            and "__" not in username
-            and "--" not in username
+        isinstance(username, str)
+        and 3 <= len(username) <= 28
+        and all(ch in USERNAME_CHARSET for ch in username)
+        and "__" not in username
+        and "--" not in username
     )
 
 
@@ -229,7 +230,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             displayname = post_data["displayname"]
             password = post_data["password"]
             public_key = post_data["publicKey"]
-        except KeyError:
+            assert isinstance(username, str) and isinstance(displayname, str) and isinstance(password, str) and isinstance(public_key, str)
+        except (KeyError, AssertionError):
             self.send_error(400,
                             "JSON object needs to have attributes: 'username', 'displayname', 'password', 'publicKey'.")
             return
@@ -247,8 +249,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             self.send_error(400, "Password should have a length between 1 and 128 characters.")
             return
 
-        if not all(i in public_key for i in {"alg", "e", "ext", "key_ops", "kty", "n"}):
-            self.send_error(400, "Public key should be in JWK format.")
+        if not (32 <= len(public_key) <= 1024):
+            self.send_error(400, "Public key should be in Base64-encoded \"raw\" format.")
             return
 
         user_dir = os.path.join(backend_dir, "accounts", username)
@@ -359,8 +361,8 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             sent_message_text = post_data["text"].strip()
             channel_id = post_data["channel"]
             temp_id = post_data["tempID"]
-            assert sent_message_text and channel_id and temp_id
-        except (KeyError, AssertionError):
+            assert sent_message_text and channel_id and temp_id and isinstance(sent_message_text, str) and isinstance(channel_id, str) and isinstance(temp_id, str)
+        except (KeyError, AssertionError, ValueError):
             self.send_error(400, "JSON object needs to have attributes: 'text', 'channel', 'tempID'.")
             return
 
@@ -477,6 +479,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             channel_name = post_data['channelName'].strip()
             encrypted_channel_key = post_data['encryptedChannelKey']
+            channel_key_iv = post_data['iv']
         except (KeyError, ValueError, TypeError):
             self.send_error(400, "Channel Name/Encrypted Channel Key is missing or invalid; should be string")
             return
@@ -507,7 +510,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         # Successfully created channel! Add user to channel
         user_meta_file = os.path.join(backend_dir, "accounts", username, "meta.json")
         user_meta = self.read_json_file(user_meta_file, "User doesn't exist but literally should because already authorized.", "user meta")
-        user_meta['channels'][channel_id] = encrypted_channel_key
+        user_meta['channels'][channel_id] = {
+            "encryptedKey": encrypted_channel_key,
+            "iv": channel_key_iv
+        }
         self.write_json_file(user_meta_file, user_meta, "user meta")
 
         self.send_response(200)
@@ -602,8 +608,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         try:
             channel_id: str = post_data['channelID'].strip()
             new_member: str = post_data['newMember'].strip()
-            assert validate_username(new_member)
             encrypted_channel_key = post_data['encryptedChannelKey']
+            channel_key_iv: str = post_data['iv']
+            assert isinstance(channel_id, str) and isinstance(new_member, str) and isinstance(encrypted_channel_key, str) and isinstance(channel_key_iv, str)
+            assert validate_username(new_member)
         except (KeyError, ValueError, TypeError, AssertionError):
             self.send_error(400, "Channel Name/New Member is missing or invalid; should be string")
             return
@@ -636,7 +644,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         #     self.send_error(400, "Member is already in the channel!")
         #     return
 
-        new_member_meta['channels'][channel_id] = encrypted_channel_key
+        new_member_meta['channels'][channel_id] = {
+            "encryptedKey": encrypted_channel_key,
+            "iv": channel_key_iv
+        }
         channel_meta['members'].append(new_member)
 
         try:
