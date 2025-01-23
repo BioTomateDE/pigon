@@ -4,14 +4,10 @@ body {
     flex-wrap: wrap;
     padding: 1em 1em 1em 1em;
     margin: 0;
-    /* min-height: 90vh;
-    height: 90vh; */
 }
 
 #flex-container {
     display: flex;
-    /* background-color: rgb(110, 71, 33); */
-    /* height: 100%; */
     gap: 1em;
 }
 
@@ -26,21 +22,18 @@ body {
     flex-direction: column;
     width: 15em;
     padding: 1em;
-    
+
     border-radius: 5px;
     background-color: var(--tenary-color);
 }
 
 #page {
-    /* position: absolute; */
     display: flex;
     flex-direction: column;
     width: 85%;
     min-width: 0;
     max-width: 85%;
     flex: 1;
-    /* height: 100%; */
-    /* overflow: auto; */
 }
 
 #sendbar {
@@ -55,7 +48,7 @@ body {
     background-color: var(--secondary-color);
     display: flex;
     justify-content: center;
-    padding: .2em 0em .2em 0em;  /* TODO make this work */
+    padding: .2em 0 .2em 0;
 }
 
 .scrollbar-scroller {
@@ -74,14 +67,10 @@ body {
     display: flex;
 
     border-radius: 3em;
-    /* border-color: var(--secondary-color); */
-    /* border-color: transparent;
-    border-style: solid;
-    border-width: 4px; */
     height: 40em;
     scrollbar-width: none;
-    
-    margin: 0em 0em 0.8em 0em;
+
+    margin: 0 0 0.8em 0;
 }
 
 
@@ -121,8 +110,8 @@ body {
 
 .message {
     margin-bottom: 1em;
-    word-wrap: break-all;
-    overflow-wrap: break-all;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .message-unconfirmed {
@@ -139,7 +128,7 @@ body {
 
 
 #channel-header {
-    padding: 0em 0em 0.7em 0em;
+    padding: 0 0 0.7em 0;
 }
 
 #channel-actions {
@@ -148,12 +137,12 @@ body {
 }
 
 #channel-header-name {
-    margin: 0.2em 0em 0.3em 0em;
+    margin: 0.2em 0 0.3em 0;
 }
 
 #channel-header-members {
     color: var(--secondary-text-color);
-    margin: 0.2em 0em 0.2em 0.15em;
+    margin: 0.2em 0 0.2em 0.15em;
 }
 
 #sidebar-channels {
@@ -165,12 +154,10 @@ body {
     border-radius: .5em;
     border-style: solid;
     border-width: 1px;
-    /* border-color: var(--secondary-color); */
     border-color: transparent;
     background-color: var(--tenary-color);
 
-    /* padding: 0em .1em 0em .1em; */
-    margin: .1em 0em .1em 0em;
+    margin: .1em 0 .1em 0;
 }
 
 .sidebar-channel:hover {
@@ -178,6 +165,6 @@ body {
 }
 
 .sidebar-channel-name {
-    margin: .5em 0em .5em .3em;
+    margin: .5em 0 .5em .3em;
     overflow: hidden;
 }
