@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import random
 import shutil
 from base64 import b64encode
@@ -28,8 +29,6 @@ def validate_username(username: str) -> bool:
 
 
 class FileReadError(Exception): ...
-
-
 class FileWriteError(Exception): ...
 
 
@@ -743,32 +742,36 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         user_meta_file = os.path.join(user_dir, "meta.json")
 
         try:
-            user_meta = self.read_json_file(user_meta_file, "User does not exist", "user meta")
+            user_meta = self.read_json_file(user_meta_file, "User does not exist.", "user meta")
         except FileReadError:
             return
 
-        if len(user_dir.strip()) < 20:
-            print("Channel Dir empty somehow; preventing deleting root!")
-            return
-
-        try:
-            shutil.rmtree(user_dir)
-        except FileNotFoundError:   # user didn't exist in the first place somehow
-            pass
-
-        # Success! Deleted account. Remove them from every channel as well
+        # Delete all messages from every channel, then remove them from that channel as well
         for channel in user_meta['channels']:
-            channel_meta_file = os.path.join(backend_dir, "channels", channel, "meta.json")
+            channel_dir = os.path.join(backend_dir, "channels", channel)
+            channel_meta_file = os.path.join(channel_dir, "meta.json")
             try:
                 channel_meta = self.read_json_file(channel_meta_file, "Channel does not exist somehow", "channel meta", False)
             except FileReadError:   # channel doesn't exist for some reason
-                print("Channel doesn't exist??")
                 continue
+
+            for batch_number in range(channel_meta['latestMessageBatch'], 1, -1):
+                message_batch_file = os.path.join(channel_dir, "message_batches", f"{batch_number}.json")
+                try:
+                    message_batch = self.read_json_file(message_batch_file, "Message batch does not exist somehow", "message batch")
+                except FileReadError:
+                    return
+
+                message_batch = [message for message in message_batch if message['author'] != username]
+
+                try:
+                    self.write_json_file(message_batch_file, message_batch, "message batch")
+                except FileWriteError:
+                    return
 
             try:
                 channel_meta['members'].remove(username)
             except ValueError:   # user wasn't in channel for some reason
-                print("User wasn't in channel??")
                 continue
 
             try:
@@ -776,7 +779,23 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             except FileWriteError:
                 continue
 
+        # Purge user meta
+        user_meta = {
+            "displayname": "Deleted User",
+            "accountCreated": 0,
+            "passwordHash": " ",
+            "validTokens": [],
+            "channels": [],
+            "publicKey": " ",
+            "deleted": True,
+        }
 
+        try:
+            self.write_json_file(user_meta_file, user_meta, "user meta")
+        except FileWriteError:
+            return
+
+        # Success! Deleted account.
         self.send_response(200)
         self.send_header('Content-Type', "text/json")
         self.end_headers()

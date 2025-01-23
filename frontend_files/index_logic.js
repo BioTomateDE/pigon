@@ -744,7 +744,13 @@ window.onload = async () => {
     console.log("Channel about loaded. Loading self channels.");
     await loadSelfChannels();
 
-    console.log("Self channels loaded. Connecting WebSocket and initializing scroller.");
+    console.log("Self channels loaded. Loading message history.")
+    for (let i = 0; i < 2; i++) {
+        if (currentBatchID < 1) break;
+        await loadMessages(currentBatchID);
+    }
+
+    console.log("Message history loaded. Connecting WebSocket and initializing scroller.");
     connectWebSocket();
     initializeScroller();
     scrollerListener();
