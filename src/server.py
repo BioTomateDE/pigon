@@ -46,7 +46,6 @@ def hash_password(password: str, username: str) -> str:
     salt2 = bytes(username[::-1], 'utf-8')
     m.update(salt2)
     password_hash = m.hexdigest()
-    print(password_hash)
     return password_hash
 
 
@@ -518,7 +517,6 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             "channelID": channel_id
         }
 
-        print(channel_id, str(channel_id))
         self.wfile.write(bytes(json.dumps(response), "utf8"))
 
 
@@ -958,7 +956,7 @@ class HTTPHandler(SimpleHTTPRequestHandler):
         except FileReadError:
             return
 
-        channel_names: dict[int, str] = {}
+        channel_names: dict[str, str] = {}
 
         # Get names of all channels
         for channel_id in user_meta['channels']:

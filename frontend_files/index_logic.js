@@ -1,8 +1,8 @@
-document.getElementById('send-message-text').onkeydown = e => {
-    if (e.code === "Enter" && !e.shiftKey) {
-        sendMessage();
-    }
-};
+function ErrNotFound(message = "") {
+    this.name = "ErrNotFound";
+    this.message = message;
+}
+ErrNotFound.prototype = Error.prototype;
 
 
 function getCurrentChannelID() {
@@ -10,7 +10,12 @@ function getCurrentChannelID() {
 }
 
 
-function sendMessage() {
+async function sendMessage() {
+    if (!channelKey) {
+        console.log("Failed to send message because channel key is not loaded yet.");
+        return;
+    }
+
     const messageContainer = document.getElementById('send-message-text');
     const messageText = messageContainer.value.trim();
     if (!messageText) return;
@@ -40,7 +45,7 @@ function sendMessage() {
 
     const body = JSON.stringify({
         channel: channelID,
-        text: messageText,
+        text: await aesEncrypt(channelKey, messageText),
         tempID: tempID,
     });
 
@@ -62,7 +67,7 @@ function replaceMessageAuthorName(username, displayname) {
     // console.log([...placeholderAuthorNodes][0].innerHTML);
 
     [...placeholderAuthorNodes].forEach(authorNode => {
-        console.log(username, displayname, authorNode.innerText)
+        // console.log(username, displayname, authorNode.innerText);
         if (authorNode.innerText === username) {
             authorNode.innerText = displayname;
             authorNode.classList.remove("message-author-placeholder");
@@ -71,50 +76,35 @@ function replaceMessageAuthorName(username, displayname) {
 }
 
 
-function loadAccountMeta(username) {
+async function loadAccountMeta(username) {
     if (username in accountMetaCache) {
-        if (accountMetaCache.username == null) return;
-        
-        let displayname = accountMetaCache[username].displayname;
-        replaceMessageAuthorName(username, displayname);
+        return accountMetaCache[username];
+    }
+
+    const url = `/users/${username}/about/`;
+
+    const resp = await fetch(url, {cache: 'no-cache'});
+
+    if (resp.ok) {
+        console.log(`Loaded user info for ${username}`)
+        const response = await resp.json();
+        accountMetaCache[username] = response;
         if (username === selfUsername) {
-            insertSelfDisplayname(displayname);
+            selfDisplayname = response['displayname'];
+            insertSelfDisplayname();
         }
-        return;
+        return response;
     }
 
-    accountMetaCache[username] = null;  // Placeholder
-    const xhr = new XMLHttpRequest();
-
-    xhr.onreadystatechange = () => {
-        if (xhr.readyState !== 4) return;
-
-        if (xhr.status === 200 || xhr.status === 201) {
-            let response = JSON.parse(xhr.responseText);
-            accountMetaCache[username] = response;
-            let displayname = response['displayname'];
-            replaceMessageAuthorName(username, displayname);
-            if (username === selfUsername) {
-                selfDisplayname = displayname;
-                insertSelfDisplayname(displayname);
-            }
-
-        } else {
-            console.warn(`Error to /users/USER/about: ${xhr.status} - ${xhr.statusText}`);
-            let response = JSON.parse(xhr.responseText);
-            console.log("Error Message to /users/USER/about:", response['error']);
-        }
-    }
-
-    let url = `/users/${username}/about/`;
-    xhr.open('GET', url, true);
-    xhr.send(null);
+    console.warn(`Error to /users/${username}/about: ${resp.status} - ${resp.statusText}`);
+    console.log(`Error Message to /users/${username}/about:`, (await resp.json())['error']);
+    throw new ErrNotFound();
 }
 
 
-function insertSelfDisplayname(displayname) {
+function insertSelfDisplayname() {
     let displaynameNode = document.getElementById("sidebar-loginfo-displayname");
-    displaynameNode.innerText = displayname;
+    displaynameNode.innerText = selfDisplayname;
 }
 
 
@@ -151,7 +141,7 @@ function appendMessage(message, options={}) {
     }
 
     if (options.unconfirmed && typeof message.tempID !== "undefined") {
-        console.log("fsasffasfdaafd")
+        // console.log("fsasffasfdaafd");
         let nodeTempID = document.createElement("span");
         nodeTempID.innerText = message.tempID;
         nodeTempID.classList.add("message-tempid");
@@ -191,81 +181,62 @@ function shouldHideHeader(message, lastMessage) {
 }
 
 
-function loadMessages(batchID) {
+async function loadMessages(batchID) {
     loadingMessages = true;
-    const xhr = new XMLHttpRequest();
+    const url = fixLocalURL(`messages?batch=${batchID}`);
 
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            let messages = JSON.parse(xhr.responseText);
+    const resp = fetch(url, {cache: 'no-cache'});
+    if (resp.ok) {
+        const messages = await resp.json()['messages'];
 
-            for (let i = messages.length - 1; i >= 0; i--) {
-                let message = messages[i];
-                if (i > 0 && shouldHideHeader(message, messages[i-1]))
-                    appendMessage(message, { start: true, hideHeader: true });
-                else
-                    appendMessage(message, {start: true});
+        for (let i = messages.length - 1; i >= 0; i--) {
+            let message = messages[i];
+            await loadAccountMeta(message.author);
 
-                loadAccountMeta(message['author']);
+            if (i > 0 && shouldHideHeader(message, messages[i - 1])) {
+                appendMessage(message, {start: true, hideHeader: true});
+            } else {
+                appendMessage(message, {start: true});
             }
-            loadingMessages = false;
         }
-
-        else if (xhr.readyState === 4) {
-            console.warn(`Error to /channels/CHANNEL/messages: ${xhr.status} - ${xhr.statusText}`);
-            let response = JSON.parse(xhr.responseText);
-            console.log("Error Message to /channels/CHANNEL/messages:", response['error']);
-        }
+        loadingMessages = false;
+        currentBatchID--;
+        return;
     }
+    console.warn(`Error to ${url}: ${resp.status} - ${resp.statusText}`);
+    console.log(`Error Message to ${url}:`, (await resp.json())['error']);
 
-    let url = fixLocalURL(`messages?batch=${batchID}`);
-    xhr.open('GET', url, true);
-    xhr.send(null);
 }
 
 
-function loadChannelAbout(alsoLoadMessages=false) {
-    const xhr = new XMLHttpRequest();
+async function loadChannelAbout() {
+    const url = fixLocalURL("about");
 
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4 && xhr.status === 200) {
-            channelAbout = JSON.parse(xhr.responseText);
-            currentBatchID = channelAbout['latestMessageBatch'];
-            const channelHeaderDiv = document.querySelector("#channel-header");
-            const channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
-            const channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
-            channelNameNode.innerText = channelAbout['name'];
-            channelMembersNode.innerText = channelAbout['members'].join(", ");
+    const resp = await fetch(url, {cache: 'no-cache'});
+    if (resp.ok) {
+        channelAbout = await resp.json();
+        currentBatchID = channelAbout['latestMessageBatch'];
 
-            if (alsoLoadMessages) {
-                console.log("Channel about:", channelAbout);
-                console.log("Got channel about. Loading messages.");
-                loadMessages(currentBatchID);
-                currentBatchID--;
-                if (currentBatchID > 0) {
-                    loadMessages(currentBatchID);
-                    currentBatchID--;
-                }
-            }
-        }
-
-        else if (xhr.readyState === 4) {
-            let response = JSON.parse(xhr.responseText);
-            console.warn(xhr.status, xhr.statusText, response);
-            if (xhr.status === 401) {
-                deleteCookie("token");
-                deleteCookie("username");
-                console.log("Token was deleted.");
-                // window.location.pathname = "/login.html";
-                window.location.replace("/login.html");
-                // TODO display error message
-            }
-        }
+        const channelHeaderDiv = document.querySelector("#channel-header");
+        const channelNameNode = channelHeaderDiv.querySelector("#channel-header-name");
+        const channelMembersNode = channelHeaderDiv.querySelector("#channel-header-members");
+        channelNameNode.innerText = channelAbout['name'];
+        channelMembersNode.innerText = channelAbout['members'].join(", ");
+        return;
     }
 
-    let url = fixLocalURL("about");
-    xhr.open('GET', url, true);
-    xhr.send(null);
+    console.warn(`Error to ${url}: ${resp.status} - ${resp.statusText}`);
+    console.log(`Error Message to ${url}:`, (await resp.json())['error']);
+
+    if (resp.status === 401) {
+        // delete login info since 401 means it's somehow invalid
+        deleteCookie("token");
+        deleteCookie("username");
+        console.log("Login info was deleted.");
+        window.location.replace("/login.html");
+        // TODO display error message
+    }
+
 }
 
 
@@ -277,12 +248,12 @@ function connectWebSocket() {
         sock.send(`${token} ${username} ${channelID}`);
     };
 
-    sock.onclose = (event) => {
+    sock.onclose = event => {
         console.warn("[WS] Connection closed:", event);
         setTimeout(connectWebSocket, 1000);
     }
 
-    sock.onmessage = (event) => {
+    sock.onmessage = async event => {
         let response = JSON.parse(event.data);
         if (response['error']) {
             console.warn("[WS] Received error:", response['error']);
@@ -294,8 +265,8 @@ function connectWebSocket() {
         if (messagesBuffer.length >= 1) {
             hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
         }
+        await loadAccountMeta(response.author);
         appendMessage(response, {hideHeader: hideHeader});
-        loadAccountMeta(response.author);
         if (typeof response.tempID !== "undefined") {
             removeUnconfirmedMessage(response.tempID);
         }
@@ -309,10 +280,10 @@ function connectWebSocket() {
 
 function removeUnconfirmedMessage(tempID) {
     const messageTempIDNodes = document.querySelectorAll(".message .message-tempid");
-    console.log(messageTempIDNodes);
+    // console.log(messageTempIDNodes);
 
     messageTempIDNodes.forEach(messageTempIDNode => {
-        console.log(messageTempIDNode.innerText, tempID);
+        // console.log(messageTempIDNode.innerText, tempID);
         if (messageTempIDNode.innerText == tempID) {
             messageTempIDNode.parentNode.remove();
         }
@@ -389,6 +360,23 @@ function deleteAccount() {
     xhr.send(null);
 }
 
+
+async function loadSelfChannels() {
+    const resp = await fetch("/get_self_channels", {cache: "no-cache"});
+    if (resp.ok) {
+        const response = await resp.json();
+
+        for (let [channelID, channelName] of Object.entries(response)) {
+            addChannelToSidebar(channelID, channelName);
+        }
+        return;
+    }
+    console.warn(`Error to ${url}: ${resp.status} - ${resp.statusText}`);
+    console.log(`Error Message to ${url}:`, (await resp.json())['error']);
+
+}
+
+
 function addChannelToSidebar(channelID, channelName) {
     let sidebarChannels = document.querySelector("#sidebar-channels");
 
@@ -431,62 +419,6 @@ function removeChannelFromSidebar(channelID) {
 
 
 
-function loadSelfChannels() {
-    const xhr = new XMLHttpRequest();
-
-    xhr.onreadystatechange = () => {
-        if (xhr.readyState !== 4) return;
-
-        if (xhr.status === 200) {
-            let response = JSON.parse(xhr.responseText);
-            console.log("Response to /get_self_channels:", response);
-
-            // put in sidebar
-            for (const [channelID, channelName] of Object.entries(response)) {
-                addChannelToSidebar(channelID, channelName);
-            }
-        }
-
-        else {
-            console.warn(`Error to /get_self_channels: ${xhr.status} - ${xhr.statusText}`);
-            let response = JSON.parse(xhr.responseText);
-            console.log("Error Message to /get_self_channels:", response['error']);
-        }
-    }
-
-    xhr.open("GET", "/get_self_channels", true);
-    xhr.send(null);
-}
-
-// function messagesAutoLoader() {
-//     if (loadingMessages) {
-//         setTimeout(messagesAutoLoader, 300);
-//         return;
-//     }
-//
-//     const messagesDiv = document.querySelector("#messages");
-//     // if (messagesDiv.children.length == 0) {
-//     //     setTimeout(messagesAutoLoader, )
-//     // }
-//
-//     const oldestMessage = messagesDiv.children[messagesDiv.children.length - 1];
-//
-//     let rectElem = oldestMessage.getBoundingClientRect();
-//     let rectContainer = messagesDiv.getBoundingClientRect();
-//
-//     if (rectElem.top - 1 > rectContainer.top) {
-//         setTimeout(messagesAutoLoader, 300);
-//         return;
-//     }
-//
-//     loadMessages(currentBatchID);
-//     currentBatchID--;
-//     if (currentBatchID > 0) {
-//         setTimeout(messagesAutoLoader, 300);
-//     }
-// }
-
-
 function scrollerListener() {
     let initialPointerY = null;
     let initialScrollerTop = null;
@@ -502,8 +434,7 @@ function scrollerListener() {
         console.log("Checking if messages need to be loaded");
 
         if (scroller.offsetTop / scrollbar.clientHeight < 0.5) {
-            loadMessages(currentBatchID);
-            currentBatchID--;
+            loadMessages(currentBatchID).then();
         }
     }, 200);
 
@@ -606,7 +537,7 @@ async function createChannel() {
     let publicKeyRaw = accountMetaCache[selfUsername].publicKey;
     let publicKey = await importRsaPublicKey(publicKeyRaw);
     let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
-    let encodedChannelKey = aesEncodeKey(encryptedChannelKey);
+    let encodedChannelKey = base64js.fromByteArray(new Uint8Array(encryptedChannelKey));
 
     xhr.open("POST", "/create_channel", true);
     let body = JSON.stringify({
@@ -656,10 +587,12 @@ async function addMember() {
     if (!memberUsername) return;
     memberUsername = memberUsername.trim().toLowerCase();
 
-    if (!(memberUsername in accountMetaCache)) {
-        loadAccountMeta(memberUsername);
-        alert("Please retry in a few seconds.");
-        return;
+    try {
+        await loadAccountMeta(memberUsername);
+    } catch (error) {
+        if (error instanceof ErrNotFound) {
+            return;   // user does not exist
+        }
     }
 
     const xhr = new XMLHttpRequest();
@@ -670,7 +603,7 @@ async function addMember() {
         if (xhr.status === 200) {
             let response = JSON.parse(xhr.responseText);
             console.log("Response to /add_member_to_channel:", response);
-            loadChannelAbout();
+            loadChannelAbout().then();
         }
         else {
             console.warn(`Error to /add_member_to_channel: ${xhr.status} - ${xhr.statusText}`);
@@ -680,15 +613,18 @@ async function addMember() {
         }
     }
 
-    let selfEncryptedChannelKey = accountMetaCache[selfUsername].channels[getCurrentChannelID()];
+    let selfPrivateKey = await retrievePrivateKey();
 
-    let encodedSelfPrivateKey = await retrievePrivateKey();
-    let selfPrivateKey = aesDecodeKey(encodedSelfPrivateKey);
-    let channelKey = rsaDecrypt(selfPrivateKey, selfEncryptedChannelKey);
+    let selfEncryptedEncodedChannelKey = accountMetaCache[selfUsername].channels[getCurrentChannelID()];
+    let selfEncryptedChannelKey = base64js.toByteArray(selfEncryptedEncodedChannelKey);
+
+    let channelKey = await rsaDecrypt(selfPrivateKey, selfEncryptedChannelKey);
+
     let publicKeyRaw = accountMetaCache[memberUsername].publicKey;
     let publicKey = await importRsaPublicKey(publicKeyRaw);
+
     let encryptedChannelKey = await rsaEncrypt(publicKey, channelKey);
-    let encodedChannelKey = aesEncodeKey(encryptedChannelKey);
+    let encodedChannelKey = base64js.fromByteArray(encryptedChannelKey);
 
     xhr.open("POST", "/add_member_to_channel", true);
     let body = JSON.stringify({
@@ -714,7 +650,7 @@ function removeMember() {
         if (xhr.status === 200) {
             let response = JSON.parse(xhr.responseText);
             console.log("Response to /remove_member_from_channel:", response);
-            loadChannelAbout();
+            loadChannelAbout().then();
         }
         else {
             console.warn(`Error to /remove_member_from_channel: ${xhr.status} - ${xhr.statusText}`);
@@ -734,8 +670,23 @@ function removeMember() {
 }
 
 
+async function loadChannelKey() {
+    const selfPrivateKey = await retrievePrivateKey();
+    const channelID = getCurrentChannelID();
+    const encodedEncryptedChannelKey = accountMetaCache[selfUsername].channels[channelID];
+    const encryptedChannelKey = base64js.toByteArray(encodedEncryptedChannelKey);
+    channelKey = await rsaDecrypt(selfPrivateKey, encryptedChannelKey);
+}
 
-window.onload = () => {
+
+
+window.onload = async () => {
+    document.getElementById('send-message-text').onkeydown = async e => {
+        if (e.code === "Enter" && !e.shiftKey) {
+            await sendMessage();
+        }
+    };
+
     // variables and stuff
     channelAbout = null;
     currentBatchID = null;
@@ -744,16 +695,25 @@ window.onload = () => {
     selfDisplayname = null;
     loadingMessages = true;
     messagesBuffer = [];
+    channelKey = null;
 
-    console.log("Document is loaded. Loading channel about.");
-    loadChannelAbout(true);
-    console.log("Channel about loaded. Loading self displayname and channels.");
-    loadAccountMeta(selfUsername);
-    loadSelfChannels();
-    // console.log("Self displayname loaded. Connecting WebSocket.");
+    console.log("Document loaded. Loading self account info.");
+    await loadAccountMeta(selfUsername);
+    try {
+        await loadChannelKey();
+    }
+    catch (error) {
+        console.warn(`Could not get channel key for channel ${getCurrentChannelID()}.`);
+    }
+
+    console.log("Self account info loaded. Loading current channel info.");
+    await loadChannelAbout();
+
+    console.log("Channel about loaded. Loading self channels.");
+    await loadSelfChannels();
+
+    console.log("Self channels loaded. Connecting WebSocket and initializing scroller.");
     connectWebSocket();
     initializeScroller();
     scrollerListener();
 }
-
-// TODO: self username not replacing in message

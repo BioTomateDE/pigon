@@ -311,6 +311,9 @@ function clamp(minimum, number, maximum) {
 }
 
 
+
+
+
 function storeLoginData(username, generatedToken) {
     let tokenExpiryDate = new Date();
     tokenExpiryDate.setFullYear(tokenExpiryDate.getFullYear() + 1);
@@ -380,7 +383,13 @@ async function retrievePrivateKey() {
 }
 
 async function importRsaPublicKey(keyRaw) {
-    let key = await crypto.subtle.importKey("jwk", keyRaw, rsaKeyOps, true, ['encrypt']);
+    let key = await crypto.subtle.importKey(
+        "jwk",
+        keyRaw,
+        rsaKeyOps,
+        true,
+        ['encrypt']
+    );
     return key;
 }
 
@@ -409,16 +418,3 @@ async function aesDecrypt(key, encrypted) {
     return decoded;
 }
 
-
-
-// v TODO fix base64 encoding (js is weird ngl)
-function aesEncodeKey(key) {
-    let encoded = btoa(new TextDecoder().decode(key));
-    return encoded;
-}
-
-function aesDecodeKey(encoded) {
-    let key = new TextEncoder().encode(atob(encoded));
-    return key;
-}
-// ^
