@@ -51,4 +51,4 @@ Da ich nicht den Fokus auf eine Datenbank, sondern auf Verschlüsselung gelegt h
 
 Durch diese intensive Auslastung des Dateisystems **kann der Server sich manchmal aufhängen**.
 Das merkt man dadurch, das der Server für lange Zeit (mehr als 20 Sekunden) nicht reagiert.
-Um dies zu beheben, **muss der Server in der Konsole durch Strg+C gestoppt und dann wieder gestartet werden**.
+Um dies zu beheben, **muss der Server in der Konsole durch Strg+Unterbrechen gestoppt und dann wieder gestartet werden**.
