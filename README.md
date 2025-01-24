@@ -13,9 +13,9 @@ Entwickelt von **Levent Taraszow** (10-3) für Informatik mPA 2024/25.
   - RSA-Verschlüsslung für die Speicherung von (symmetrischen) Channel-Schlüsseln
   - AES-Verschlüsslung für das Senden und Empfangen von Nachrichten
 - **Text-Formatierung in Nachrichten**:
-  - `*` oder `_` für *kursiv*
-  - `**` für **fett**
-  - `__` für <ins>unterstrichen</ins>
+  - `*` oder `_` für *kursiven* Text
+  - `**` für **fetten** Text
+  - `__` für <ins>unterstrichenen</ins> Text
   - ``` ` ``` für einzeilige `Code-Blöcke`
   - ` `` ` für mehrzeilige <code>Code-Blöcke</code>
 - **GDPR/DSGVO-konform**; alle gesammelten Daten werden auf Wunsch mit einem Knopfdruck sofort gelöscht!
@@ -36,7 +36,7 @@ Getestet auf **Windows 11** 23H2 mit Python **3.12.6**.
 4. Dieses Repository herunterladen: `<> Code` --> `Download ZIP`
 5. Heruntergeladene ZIP-Datei zum gewünschten Server-Ordner extrahieren
 6. Es sollten diese `README.md`-Datei und drei Ordner `src`, `backend_files` und `frontend_files` enthalten sein.
-7. Im Ordner `backend_files` sollten zwei leere Ordner `accounts` und `channels` existieren. Wenn nicht, diese bitte erstellen. Wenn sie nicht leer sind, bitte entleeren.
+7. Im Ordner `backend_files` sollten zwei leere Ordner `accounts` und `channels` existieren. Wenn nicht, diese bitte erstellen. Diese sollten nur jeweils eine .gitkeep Datei enthalten. Falls das nicht der Fall ist, sollten alle Dateien in diesen Ordnern gelöscht werden (Die .gitkeep Dateien können ebenfalls gelöscht werden).
 8. Um den Server auszuführen, in einem Command-Prompt zum `src`-Ordner navigieren
 9. Dann `py server.py` ausführen (bzw. `python server.py`)
 10. Es sollten zwei Nachrichten erscheinen: `Started server.` und `Started Websocket Server.`
