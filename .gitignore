@@ -1,9 +1,9 @@
 __pycache__
 *.pyc
 .env
+backend_files/accounts/*
+backend_files/channels/*.
 !backend_files/accounts/*.gitkeep
 !backend_files/channels/*.gitkeep
-backend_files/accounts/*
-backend_files/channels/*
 .idea
 .idea/*
