@@ -312,14 +312,18 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             return
 
         user_dir = os.path.join(backend_dir, "accounts", username)
-        meta_file = os.path.join(user_dir, "meta.json")
+        user_meta_file = os.path.join(user_dir, "meta.json")
 
         try:
-            meta = self.read_json_file(meta_file, "User does not exist.", "user meta")
+            user_meta = self.read_json_file(user_meta_file, "User does not exist.", "user meta")
         except FileReadError:
             return
 
-        stored_password_hash = meta["passwordHash"]
+        if user_meta['deleted']:
+            self.send_error(404, "User deleted.")
+            return
+
+        stored_password_hash = user_meta["passwordHash"]
         password_hash = hash_password(password, username)
 
         if stored_password_hash != password_hash:
@@ -328,10 +332,10 @@ class HTTPHandler(SimpleHTTPRequestHandler):
 
         generated_token = generate_token()
         generated_token_hashed = hash_token(generated_token)
-        meta['validTokens'].append(generated_token_hashed)
+        user_meta['validTokens'].append(generated_token_hashed)
 
         try:
-            self.write_json_file(meta_file, meta, "user meta", False)
+            self.write_json_file(user_meta_file, user_meta, "user meta", False)
         except FileWriteError:
             return
 
@@ -753,13 +757,16 @@ class HTTPHandler(SimpleHTTPRequestHandler):
             try:
                 channel_meta = self.read_json_file(channel_meta_file, "Channel does not exist somehow", "channel meta", False)
             except FileReadError:   # channel doesn't exist for some reason
+                print(f"Channel {channel} doesn't exist?")
                 continue
 
-            for batch_number in range(channel_meta['latestMessageBatch'], 1, -1):
+
+            for batch_number in range(channel_meta['latestMessageBatch'], 0, -1):
                 message_batch_file = os.path.join(channel_dir, "message_batches", f"{batch_number}.json")
                 try:
                     message_batch = self.read_json_file(message_batch_file, "Message batch does not exist somehow", "message batch")
                 except FileReadError:
+                    print(f"Message batch #{batch_number} in channel {channel} doesn't exist?")
                     return
 
                 message_batch = [message for message in message_batch if message['author'] != username]
@@ -767,16 +774,19 @@ class HTTPHandler(SimpleHTTPRequestHandler):
                 try:
                     self.write_json_file(message_batch_file, message_batch, "message batch")
                 except FileWriteError:
+                    print(f"Could not write to message batch file #{batch_number} in channel {channel}")
                     return
 
             try:
                 channel_meta['members'].remove(username)
             except ValueError:   # user wasn't in channel for some reason
+                print(f"User {username} wasn't in channel {channel}?")
                 continue
 
             try:
                 self.write_json_file(channel_meta_file, channel_meta, "channel meta", False)
             except FileWriteError:
+                print(f"Couldn't write to channel {channel} meta file")
                 continue
 
         # Purge user meta

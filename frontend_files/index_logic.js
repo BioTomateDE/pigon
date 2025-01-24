@@ -198,9 +198,9 @@ async function loadMessages(batchID) {
     loadingMessages = true;
     const url = fixLocalURL(`messages?batch=${batchID}`);
 
-    const resp = fetch(url, {cache: 'no-cache'});
+    const resp = await fetch(url, {cache: 'no-cache'});
     if (resp.ok) {
-        const messages = await resp.json()['messages'];
+        const messages = await resp.json();
 
         for (let i = messages.length - 1; i >= 0; i--) {
             let message = messages[i];
@@ -284,10 +284,19 @@ function connectWebSocket() {
         }
 
         console.log("[WS] Received message:", response);
+
         let hideHeader = false;
-        if (messagesBuffer.length >= 1) {
-            hideHeader = shouldHideHeader(response, messagesBuffer[messagesBuffer.length - 1]);
+        let lastConfirmedMessage = null;
+        for (let i = messagesBuffer.length - 1; i >= 0; i--) {
+            if (messagesBuffer[i].tempID) continue;
+            lastConfirmedMessage = messagesBuffer[i];
+            break;
         }
+        console.log(messagesBuffer.length, response, lastConfirmedMessage);
+        if (lastConfirmedMessage !== null) {
+            hideHeader = shouldHideHeader(response, lastConfirmedMessage);
+        }
+
         await loadAccountMeta(response.author);
         await appendMessage(response, {hideHeader: hideHeader});
         if (typeof response.tempID !== "undefined") {
@@ -706,6 +715,10 @@ async function loadChannelKey() {
 
 
 window.onload = async () => {
+    if (!getCookie("token") && window.location.pathname === "/") {
+        window.location.replace("/register.html");
+    }
+
     document.getElementById('send-message-text').onkeydown = async e => {
         if (e.code === "Enter" && !e.shiftKey) {
             await sendMessage();
